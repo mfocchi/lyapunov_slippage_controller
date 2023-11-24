@@ -3,12 +3,12 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include "../../robot_model/include/robot_model/motionModels.h"
+#include "lyapunov_slippage_controller/motionModels.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
-#include "unicycle_controller/coppeliaSimNode.h"
-#include "unicycle_controller/differential_drive_model.h"
+#include "lyapunov_slippage_controller/coppeliaSimNode.h"
+#include "lyapunov_slippage_controller/differential_drive_model.h"
 
 
 using namespace std::chrono_literals;
@@ -18,8 +18,8 @@ class DifferentialDriveOpenLoopNode : public CoppeliaSimNode
 private:
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_cmd;
     rclcpp::TimerBase::SharedPtr timer_cmd;
-    std::vector<data_t> longitudinal_velocity;
-    std::vector<data_t> angular_velocity;
+    std::vector<double> longitudinal_velocity;
+    std::vector<double> angular_velocity;
 	std::shared_ptr<DifferentialDriveModel> Model;
     size_t count_; 
     long iter;
@@ -55,8 +55,8 @@ public:
 		declare_parameter("sprocket_radius_m", 0.0979);
 		declare_parameter("gearbox_ratio", 39.5);
         declare_parameter("pub_dt_ms", 200);
-    	declare_parameter("v_des_mps", std::vector<data_t>({0.0,0.0}));
-    	declare_parameter("omega_des_radps", std::vector<data_t>({0.0,0.0}));
+    	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
+    	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
 
         get_parameter("track_distance_m", d);
 		get_parameter("sprocket_radius_m", r);

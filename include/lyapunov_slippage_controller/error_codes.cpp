@@ -16,6 +16,12 @@ void printErrorCode(Error code)
     case DESIRED_TRAJECTORY_INCOMPLETE:
         std::cout << "No desired values have been set! Remember to use setControlInputsDesired(...)" << std::endl;
         break;
+    case SINGULARITY_DT_ALPHA_DOT:
+        std::cout << "In the calculation of alpha dot, dt=0.0" << std::endl;
+        break;
+    case NEGATIVE_DT_ALPHA_DOT:
+        std::cout << "In the calculation of alpha dot, dt is negative" << std::endl;
+        break;
     default:
         std::cout << "Code not found CODE:["<< code << "]" << std::endl;
         break;

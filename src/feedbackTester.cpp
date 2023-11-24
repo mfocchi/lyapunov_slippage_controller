@@ -9,7 +9,7 @@
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
-#include "../../robot_model/include/robot_model/motionModels.h"
+#include "lyapunov_slippage_controller/motionModels.h"
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH 2

@@ -11,9 +11,10 @@
 #include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/bool.hpp"
-#include "unicycle_controller/coppeliaSimNode.h"
-#include "unicycle_controller/differential_drive_model.h"
-#include "unicycle_controller/error_codes.h"
+#include "lyapunov_slippage_controller/lyapunovController.h"
+#include "lyapunov_slippage_controller/coppeliaSimNode.h"
+#include "lyapunov_slippage_controller/differential_drive_model.h"
+#include "lyapunov_slippage_controller/error_codes.h"
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
@@ -23,19 +24,28 @@ using namespace std::chrono_literals;
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
 
-class LyapControllerNode : public CoppeliaSimNode
+class SlippageControllerNode : public CoppeliaSimNode
 {
 private:
     rclcpp::TimerBase::SharedPtr timer_cmd;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_cmd;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_trk_error;
 	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub;
-    SlippageControllerPtr Ctrl;
+    LyapControllerPtr Ctrl;
 	std::shared_ptr<DifferentialDriveModel> Model;
-    Vector3_t pose;
-    data_t t_start;
-	data_t t_pose_init;
-    std::vector<data_t> origin_RF;
+    Eigen::Vector3d pose;
+    double t_start;
+	double t_pose_init;
+	Measurement1D alpha_prev_1; // store alpha value at time dt*(k-2)
+	Measurement1D alpha_prev_2; // store alpha value at time dt*(k-1)
+	double i_L_prev; // store i_L value at time dt*(k-1)
+	double i_R_prev; // store i_R value at time dt*(k-1)
+    std::vector<double> origin_RF;
+	std::vector<double> i_inner_coeff;
+	std::vector<double> i_outer_coeff;
+	std::vector<double> alpha_coeff;
+	double long_slip_epsilon;
+
 	bool enable_pose_init;
 	double n_samples_pose_init;
 	
@@ -69,11 +79,11 @@ private:
 			origin_RF[6], origin_RF[7], origin_RF[8]) * R;
 
 		// Transform the coordinate system into the classic x,y on plane,z upwards
-		data_t x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
-		data_t y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
-		//data_t z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
+		double x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
+		double y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
+		//double z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
 
-		data_t roll, pitch, yaw;
+		double roll, pitch, yaw;
 		R.getEulerYPR(yaw, pitch, roll);
 
 		if(this->enable_pose_init)
@@ -94,40 +104,44 @@ private:
 	controller and finally the effects of slippage are compensated by a transformer */
     void trackTrajectory(sensor_msgs::msg::JointState* msg_out)
     {
-		Vector2_t u;
-		data_t t_now = getCurrentTime();
-		data_t dt = t_now - t_start;
+		Eigen::Vector2d u;
+		double t_now = getCurrentTime();
+		double dt = t_now - t_start;
 
-		// get alpha
-		// compute desired pose (x,y,theta)_des by integration
-		// set current P_bar = (x,y,theta)_act + (0,0,alpha)
-		// P_bar input to Lyap controller -> u_bar
-		// conversion block u = f(alpha, alpha_dot, u_bar) 
+		// compute an estimation of the longitudinal and lateral slips
 
+		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
+		Eigen::Vector3d pose_bar = pose + pose_offset; 
+	
 		Ctrl->setCurrentTime(dt);
-		Ctrl->step(pose, &u);
-		
+		Ctrl->step(pose_bar, &u);
+		// conversion block u = f(alpha, alpha_dot, u_bar) 
+		convertskidSteering(u, &u);
 		double v = u(0);
 		double omega = u(1);
+		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(v, omega);
-		double motor_vel_left  = Model->getLeftMotorRotationalSpeed();
-		double motor_vel_right = Model->getRightMotorRotationalSpeed();
+		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
+		double motor_vel_R = Model->getRightMotorRotationalSpeed();
+		
+		// compensate the longitudinal slip
+		double motor_vel_comp_L = motor_vel_L / (1-i_L_prev);
+		double motor_vel_comp_R = motor_vel_R / (1-i_R_prev);
 
-		// conpensate with long slip model to get (w_l, w_r)_final
 		msg_out->name = {"left_sprocket", "right_sprocket"};
 		msg_out->velocity = std::vector<double>{
-			motor_vel_left, 
-			motor_vel_right
+			motor_vel_comp_L, 
+			motor_vel_comp_R
 		};
-
 		// estimate alpha, alpha_dot
+		updateSlipsPrev(u);
     }
 
 	void getTrackingErrorMsg(geometry_msgs::msg::Vector3Stamped* msg)
 	{
-		data_t e_x = LyapCtrl->getErrorX();
-		data_t e_y = LyapCtrl->getErrorY();
-		data_t e_th = LyapCtrl->getErrorTheta();
+		double e_x = Ctrl->getErrorX();
+		double e_y = Ctrl->getErrorY();
+		double e_th = Ctrl->getErrorTheta();
 
 		msg->vector.x = e_x;
 		msg->vector.y = e_y;
@@ -137,26 +151,26 @@ private:
 		msg->header.frame_id = "world";
 	}
 
-	data_t getCurrentTime()
+	double getCurrentTime()
 	{
-		data_t t;
+		double t;
 		if(this->isCoppeliaSimEnabled())
 		{
 			t = this->getSimTime();
 		}
 		else
 		{
-			t = data_t((this->get_clock()->now()).nanoseconds()) * NANO;
+			t = double((this->get_clock()->now()).nanoseconds()) * NANO;
 		}
 		return t;
 	}
 
-	void updatePoseWithMovingAverage(data_t x, data_t y, data_t yaw)
+	void updatePoseWithMovingAverage(double x, double y, double yaw)
 	{
 		// Current pose is treated as the current pose average
 		// handle the periodicity of the angle
-		data_t yaw_diff = this->pose(2) - yaw;
-		data_t yaw_tmp = yaw;
+		double yaw_diff = this->pose(2) - yaw;
+		double yaw_tmp = yaw;
 		if(yaw_diff > M_PI)
 		{
 			yaw_tmp = this->pose(2) + (2*M_PI - yaw_diff);
@@ -167,11 +181,11 @@ private:
 		}
 
 		// perform moving average
-		data_t x_avg = this->pose(0) + (x - this->pose(0)) / 
+		double x_avg = this->pose(0) + (x - this->pose(0)) / 
 			(this->n_samples_pose_init+1);
-		data_t y_avg = this->pose(1) + (y - this->pose(1)) / 
+		double y_avg = this->pose(1) + (y - this->pose(1)) / 
 			(this->n_samples_pose_init+1);
-		data_t yaw_avg = this->pose(2) + (yaw_tmp - this->pose(2)) / 
+		double yaw_avg = this->pose(2) + (yaw_tmp - this->pose(2)) / 
 			(this->n_samples_pose_init+1);
 
 		// update values
@@ -180,7 +194,7 @@ private:
 		this->n_samples_pose_init += 1.0;
 	}
 
-	void initPoseMovingAverage(data_t x, data_t y, data_t yaw)
+	void initPoseMovingAverage(double x, double y, double yaw)
 	{
 		this->pose << x,y,angleWithinPI(yaw);
 		this->n_samples_pose_init += 1.0;
@@ -188,11 +202,11 @@ private:
 
 	void setupTrajectory()
 	{
-		std::vector<data_t> v_vec 		= this->get_parameter("v_des_mps").as_double_array();
-		std::vector<data_t> omega_vec	= this->get_parameter("omega_des_radps").as_double_array();
-		std::vector<data_t> x_vec		= this->get_parameter("x_des_m").as_double_array();
-		std::vector<data_t> y_vec		= this->get_parameter("y_des_m").as_double_array();
-		std::vector<data_t> theta_vec	= this->get_parameter("theta_des_rad").as_double_array();
+		std::vector<double> v_vec 		= this->get_parameter("v_des_mps").as_double_array();
+		std::vector<double> omega_vec	= this->get_parameter("omega_des_radps").as_double_array();
+		std::vector<double> x_vec		= this->get_parameter("x_des_m").as_double_array();
+		std::vector<double> y_vec		= this->get_parameter("y_des_m").as_double_array();
+		std::vector<double> theta_vec	= this->get_parameter("theta_des_rad").as_double_array();
 		bool COPY_WHOLE_TRAJ  = this->get_parameter("copy_trajectory").as_bool();
 		
 		t_start = getCurrentTime();
@@ -211,9 +225,134 @@ private:
 		}
 	}
 
-	
+
+	double computeSideSlipAngle(const Eigen::Vector2d& u) const
+	{
+		double R = computeTurningRadius(u(0), u(1));
+		if(u(1) == 0.0 || u(2) == 0.0)
+		{
+			/* In this situation the vehicle is going straight
+			*  or turning on the spot. In both cases there is no
+			*  side slip angle
+			*/
+			return 0.0;
+		}
+		double a0,a1,a2;
+		a0 = this->alpha_coeff.at(0);
+		a1 = this->alpha_coeff.at(1);
+		a2 = this->alpha_coeff.at(2);
+
+		// model side slip as a plyinomial in the curvature
+		double alpha = a0 + a1*pow((a2 + 1/R), 2);
+
+		if(R > 0.0) // turning left
+		{
+			return alpha;
+		}
+		else
+		{
+			return -alpha;
+		}
+		
+	}
+	double computeLeftWheelLongSlip(const Eigen::Vector2d& u) const
+	{
+		double i_L, a0, a1;
+		double R = computeTurningRadius(u(0), u(1));
+
+		if(R >= 0.0) // turning left, left wheel is inner
+		{
+			a0 = this->i_inner_coeff.at(0);
+			a1 = this->i_inner_coeff.at(1);
+		}
+		else
+		{
+			a0 = this->i_outer_coeff.at(0);
+			a1 = this->i_outer_coeff.at(1);
+		}
+		if(abs(a1 + R) < this->long_slip_epsilon)
+		{
+			// close to singularity
+			if(abs(a1 + R) * a0 > 0.0)
+				i_L =  1.0;
+			else
+				i_L = -10.0;
+		}
+		else
+		{
+			i_L = a0 / (a1 + R);
+		}
+		return i_L;
+	}
+
+	double computeRightWheelLongSlip(const Eigen::Vector2d& u) const
+	{
+		double i_R, a0, a1;
+		double R = computeTurningRadius(u(0), u(1));
+
+		if(R < 0.0) // turning right, right wheel is inner
+		{
+			a0 = this->i_inner_coeff.at(0);
+			a1 = this->i_inner_coeff.at(1);
+		}
+		else
+		{
+			a0 = this->i_outer_coeff.at(0);
+			a1 = this->i_outer_coeff.at(1);
+		}
+		if(abs(a1 + R) < this->long_slip_epsilon)
+		{
+			// close to singularity
+			if(abs(a1 + R) * a0 > 0.0)
+				i_R =  1.0;
+			else
+				i_R = -10.0;
+		}
+		else
+		{
+			i_R = a0 / (a1 + R);
+		}
+		return i_R;
+	}
+
+	double computeAlphaDot() const
+	{
+		double dalpha = this->alpha_prev_1.data - this->alpha_prev_2.data;
+		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
+		if(dt == 0.0)
+			throw SINGULARITY_DT_ALPHA_DOT;
+		if(dt <= 0.0)
+			throw NEGATIVE_DT_ALPHA_DOT;
+		return dalpha / dt;
+	}
+
+	void updateSlipsPrev(const Eigen::Vector2d& u)
+	{
+		this->i_L_prev = computeLeftWheelLongSlip(u);
+		this->i_R_prev = computeRightWheelLongSlip(u);
+		this->alpha_prev_2.time = this->alpha_prev_1.time;
+		this->alpha_prev_2.data = this->alpha_prev_1.data;
+		this->alpha_prev_1.time = getCurrentTime();
+		this->alpha_prev_1.data = computeSideSlipAngle(u);
+	}
+
+	void convertskidSteering(const Eigen::Vector2d& u, Eigen::Vector2d* u_out) const
+	{
+		/* Convert control inputs to compensate for a skid-steering 
+		*  vehicle
+		*/
+		double alpha_dot = computeAlphaDot();
+		double alpha = this->alpha_prev_1.data;
+
+		double v_conv = u(1) * cos(alpha);
+		double omega_conv = u(2) + alpha_dot;
+		*u_out << v_conv, omega_conv;
+	}
+
+
+
 public:
-    LyapControllerNode() : CoppeliaSimNode("lyapunov_controller")
+    SlippageControllerNode() : CoppeliaSimNode("lyapunov_slippage_controller")
     {
 		double d,r,gear_ratio;
 		declare_parameter("track_distance_m", 0.606);
@@ -225,12 +364,19 @@ public:
 		declare_parameter("pub_dt_ms", 100);
 		declare_parameter("time_for_pose_init_s", 0.5);
 		declare_parameter("automatic_pose_init", false);
-		declare_parameter("pose_init_m_m_rad", std::vector<data_t>({0.0,0.0,0.0}));
-    	declare_parameter("v_des_mps", std::vector<data_t>({0.0,0.0}));
-    	declare_parameter("omega_des_radps", std::vector<data_t>({0.0,0.0}));
-    	declare_parameter("x_des_m", std::vector<data_t>({0.0,0.0})); // it is used only when copy_trajectory is true
-    	declare_parameter("y_des_m", std::vector<data_t>({0.0,0.0})); // it is used only when copy_trajectory is true
-    	declare_parameter("theta_des_rad", std::vector<data_t>({0.0,0.0})); // it is used only when copy_trajectory is true
+		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
+
+		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("long_slip_singularity_epsilon", 0.01);
+
+		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
+    	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
+    	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
+    	declare_parameter("x_des_m", std::vector<double>({0.0,0.0})); // it is used only when copy_trajectory is true
+    	declare_parameter("y_des_m", std::vector<double>({0.0,0.0})); // it is used only when copy_trajectory is true
+    	declare_parameter("theta_des_rad", std::vector<double>({0.0,0.0})); // it is used only when copy_trajectory is true
 		declare_parameter("origin_RF", std::vector<double>({1,0,0,0,1,0,0,0,1}));
 		// true: the desired pose is set by the user as well as the desired control inputs
 		// false: only the desired control inputs are specified by user, the pose is obtained via integration of
@@ -241,17 +387,23 @@ public:
 		get_parameter("track_distance_m", d);
 		get_parameter("sprocket_radius_m", r);
 		get_parameter("gearbox_ratio", gear_ratio);
-		data_t Kp 		= this->get_parameter("Kp").as_double();
-		data_t Ktheta 	= this->get_parameter("Ktheta").as_double();
-		data_t dt 		= this->get_parameter("dt").as_double();
+		long_slip_epsilon = this->get_parameter("long_slip_singularity_epsilon").as_double();
+		double Kp 		= this->get_parameter("Kp").as_double();
+		double Ktheta 	= this->get_parameter("Ktheta").as_double();
+		double dt 		= this->get_parameter("dt").as_double();
 		int pub_dt 		= this->get_parameter("pub_dt_ms").as_int();
 		this->enable_pose_init  = this->get_parameter("automatic_pose_init").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
-		std::vector<data_t> pose_init   = this->get_parameter("pose_init_m_m_rad").as_double_array();
+		std::vector<double> pose_init   = this->get_parameter("pose_init_m_m_rad").as_double_array();
+
+		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
+		i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
+		alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
+
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
 
 		
-		LyapCtrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
+		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
 		
 		n_samples_pose_init = 0.0;
@@ -262,7 +414,7 @@ public:
 		else
 		{
 			this->pose << pose_init.at(0), pose_init.at(1), pose_init.at(2);
-			LyapCtrl->setStateOffset(pose_init.at(0), pose_init.at(1), pose_init.at(2));
+			Ctrl->setStateOffset(pose_init.at(0), pose_init.at(1), pose_init.at(2));
 			setupTrajectory();
 		}
 		
@@ -276,10 +428,10 @@ public:
 		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
 			"/optitrack/pose", 
 			qos_optitrack, 
-			std::bind(&LyapControllerNode::poseCallback, this, std::placeholders::_1));
+			std::bind(&SlippageControllerNode::poseCallback, this, std::placeholders::_1));
 		timer_cmd = this->create_wall_timer(
 			std::chrono::milliseconds(pub_dt), 
-			std::bind(&LyapControllerNode::timerCmdCallback, this));
+			std::bind(&SlippageControllerNode::timerCmdCallback, this));
 		if(this->isCoppeliaSimEnabled())
 		{
 			this->enableSyncWithCoppeliaSim();
@@ -291,7 +443,7 @@ public:
 	}
     
     /* add the controls to generate poses via unicycle model*/
-    void addControlsTrajectory(const std::vector<data_t>& v, const std::vector<data_t>& omega)
+    void addControlsTrajectory(const std::vector<double>& v, const std::vector<double>& omega)
     {
 		if(v.size() != omega.size())
 		{
@@ -299,16 +451,16 @@ public:
 		}
 		for(int i = 0; i < int(v.size()); i++)
 		{
-			LyapCtrl->addToInputDesired(v.at(i), omega.at(i));
+			Ctrl->addToInputDesired(v.at(i), omega.at(i));
 		}
 		// saves time value such that the first control input is at delta time 0
-		LyapCtrl->generateTrajectory();
-		RCLCPP_INFO(this->get_logger(), "%s", (LyapCtrl->stringSetupInfo()).c_str());
+		Ctrl->generateTrajectory();
+		RCLCPP_INFO(this->get_logger(), "%s", (Ctrl->stringSetupInfo()).c_str());
     }
 
 	/* add the trajectory defined as squence of controls and poses, no models are used*/
-	void addTrajectory(const std::vector<data_t>& v, const std::vector<data_t>& omega, 
-		const std::vector<data_t>& x, const std::vector<data_t>& y, const std::vector<data_t>& theta)
+	void addTrajectory(const std::vector<double>& v, const std::vector<double>& omega, 
+		const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& theta)
 	{
 		if(v.size() != omega.size())
 		{
@@ -318,17 +470,17 @@ public:
 		{
 			throw TRAJECTORY_POSE_DIFFERENT_SIZE;
 		}
-		LyapCtrl->copyTrajectory(v, omega, x,y,theta);
-		RCLCPP_INFO(this->get_logger(), "%s", (LyapCtrl->stringSetupInfo()).c_str());
+		Ctrl->copyTrajectory(v, omega, x,y,theta);
+		RCLCPP_INFO(this->get_logger(), "%s", (Ctrl->stringSetupInfo()).c_str());
 	}
 
-	void initProcedure(data_t x, data_t y, data_t yaw) /* Cannot find a way to use it*/
+	void initProcedure(double x, double y, double yaw) /* Cannot find a way to use it*/
 	{	
 		if(getCurrentTime() - t_start > this->t_pose_init)
 		{
 			if(this->n_samples_pose_init == 0.0)
 				throw NO_POSE_FEEDBACK_4_INIT;
-			LyapCtrl->setStateOffset(x, y, yaw);
+			Ctrl->setStateOffset(x, y, yaw);
 			this->enable_pose_init = false;
 			std::cout << "Pose initialized as ["<< pose(0) << ", "<< pose(1) << ", "<< pose(2) << "]"<<std::endl;
 			setupTrajectory();
@@ -351,7 +503,7 @@ int main(int argc, char ** argv)
 	rclcpp::init(argc, argv);
 	printf("Lyapunov Controller node start up\n");
 
-	std::shared_ptr<LyapControllerNode> Ctrl(new LyapControllerNode());
+	std::shared_ptr<SlippageControllerNode> Ctrl(new SlippageControllerNode());
 
 	rclcpp::spin(Ctrl);
 

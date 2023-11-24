@@ -1,6 +1,6 @@
 #include "motionModels.h"
 
-MotionModel::MotionModel(const VectorX_t& xInit, const VectorX_t& uInit, const std::map<std::string, data_t>& params)
+MotionModel::MotionModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params)
 {
     assert(params.at("dt") > 0.0);
     this->integrationType = euler;
@@ -29,9 +29,9 @@ void MotionModel::integrateTrapezoid()
 {
     /*Integration via trapezoid rule*/
     int nx = getStateSize();
-    VectorX_t fu_prev(nx);
-    VectorX_t fu_next(nx);
-    VectorX_t x_dot(nx);
+    Eigen::VectorXd fu_prev(nx);
+    Eigen::VectorXd fu_next(nx);
+    Eigen::VectorXd x_dot(nx);
     compute_fu(u_prev, &fu_prev);
     compute_fu(u,      &fu_next);
 
@@ -45,7 +45,7 @@ void MotionModel::integrateEuler()
 {
     /*Integration via trapezoid rule*/
     int nx = getStateSize();
-    VectorX_t x_dot(nx);
+    Eigen::VectorXd x_dot(nx);
     compute_fu(u, &x_dot);
     
     x.segment(0,nx) << (x.segment(0,nx) + dt * x_dot).eval(); 
@@ -63,17 +63,17 @@ int MotionModel::getStateSize() const
     return this->x.size();
 }   
 
-void MotionModel::getState(VectorX_t *x_out) const
+void MotionModel::getState(Eigen::VectorXd *x_out) const
 {
     *x_out = this->x;
 }
 
-void MotionModel::setPrevControlInput(const VectorX_t& u)
+void MotionModel::setPrevControlInput(const Eigen::VectorXd& u)
 {
     this->u_prev = u;
 }
 
-void MotionModel::setControlInput(const VectorX_t& u)
+void MotionModel::setControlInput(const Eigen::VectorXd& u)
 {
     this->u = u;
 }
@@ -85,38 +85,38 @@ x = x + v*cos(theta)*dt
 y = y + v*sin(theta)*dt
 theta = w*dt
 */
-UnicycleModel::UnicycleModel(const VectorX_t& xInit, const VectorX_t& uInit, const std::map<std::string, data_t>& params)
+UnicycleModel::UnicycleModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params)
 : MotionModel(xInit, uInit, params) {}
 
 
 
-void UnicycleModel::compute_fu(const VectorX_t& uk, VectorX_t* fu) const
+void UnicycleModel::compute_fu(const Eigen::VectorXd& uk, Eigen::VectorXd* fu) const
 {
     assert(x.size() >= 3);
     assert(fu->size() == 3);
 
-    data_t theta = x(2);
+    double theta = x(2);
     *fu << uk(0) * std::cos(theta), uk(0) * std::sin(theta), uk(1);
 }
 
-void UnicycleModel::computeJacobian_Fx(MatrixX_t* Fx) const
+void UnicycleModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const
 {
     assert(x.size() >= 3);
     assert(Fx->size() > 0); // has to be pre-initialized
-    data_t theta = x(2);
+    double theta = x(2);
     (*Fx) << 
         1, 0, -u(0)*sin(theta)*dt,
         0, 1,  u(0)*cos(theta)*dt,
         0, 0,  1;
 }
 
-void UnicycleModel::computeJacobian_Fu(MatrixX_t* Fu) const
+void UnicycleModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
 {
     // Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
     assert(x.size() >= 3);
     assert(Fu->size() > 0); // has to be pre-initialized
-    data_t theta = x(2);
+    double theta = x(2);
     (*Fu) << 
         cos(theta)*dt, 0, 
         sin(theta)*dt, 0,
@@ -125,23 +125,23 @@ void UnicycleModel::computeJacobian_Fu(MatrixX_t* Fu) const
 
 // DRONE ----------------------------------------------------
 
-DroneModel::DroneModel(const VectorX_t& xInit, const VectorX_t& uInit, const std::map<std::string, data_t>& params)
+DroneModel::DroneModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params)
     : MotionModel(xInit, uInit, params) {}
 
-void DroneModel::compute_fu(const VectorX_t& uk, VectorX_t* fu) const
+void DroneModel::compute_fu(const Eigen::VectorXd& uk, Eigen::VectorXd* fu) const
 {
     assert(x.size() >= 10);
     // Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
-    VectorX_t q_next(4);
-    MatrixX_t SomegaQ(4,4);
-    Matrix3_t SomegaE;
-    Matrix3_t RF;
-    Vector3_t a_world; // drone acceleration in the world reference frame
-    Vector3_t a_body;
-    Vector3_t g_world(0,0,GRAVITY);
-    // Vector3_t g_body;
-    MatrixX_t I = MatrixX_t::Identity(4,4);
+    Eigen::VectorXd q_next(4);
+    Eigen::MatrixXd SomegaQ(4,4);
+    Eigen::Matrix3d SomegaE;
+    Eigen::Matrix3d RF;
+    Eigen::Vector3d a_world; // drone acceleration in the world reference frame
+    Eigen::Vector3d a_body;
+    Eigen::Vector3d g_world(0,0,GRAVITY);
+    // Eigen::Vector3d g_body;
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(4,4);
     
     computeRF(x.segment(6,4), &RF);
     computeSomegaQuaternion(&SomegaQ);
@@ -158,22 +158,22 @@ void DroneModel::compute_fu(const VectorX_t& uk, VectorX_t* fu) const
 }
 
 
-void DroneModel::computeJacobian_Fx(MatrixX_t* Fx) const
+void DroneModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const
 {
     assert(x.size() >= 10);
     assert(Fx->size() > 0);
-    Vector3_t vecTmp;
-    Matrix3_t RF(3,3);
-    Matrix3_t SomegaE;
-    MatrixX_t I = MatrixX_t::Identity(3,3);
-    MatrixX_t RdotVec(3,4); // derivative wrt to q of R(q)*V
-    Vector3_t g_world(0,0,GRAVITY);
+    Eigen::Vector3d vecTmp;
+    Eigen::Matrix3d RF(3,3);
+    Eigen::Matrix3d SomegaE;
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
+    Eigen::MatrixXd RdotVec(3,4); // derivative wrt to q of R(q)*V
+    Eigen::Vector3d g_world(0,0,GRAVITY);
     computeSomegaEuler(&SomegaE);
     computeRF(x.segment(6,4), &RF);
 
-    data_t omegaX = this->u(3);
-    data_t omegaY = this->u(4);
-    data_t omegaZ = this->u(5);
+    double omegaX = this->u(3);
+    double omegaY = this->u(4);
+    double omegaZ = this->u(5);
     
     Fx->setZero();
     Fx->block(0,0,3,3) << // d position / d[x,y,z]
@@ -200,18 +200,18 @@ void DroneModel::computeJacobian_Fx(MatrixX_t* Fx) const
         dt*omegaZ*0.5,  dt*omegaY*0.5  ,-dt*omegaX*0.5,1;
 }
 
-void DroneModel::computeJacobian_Fu(MatrixX_t* Fu) const
+void DroneModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
 {
     assert(x.size() >= 10);
     assert(Fu->size() > 0);
-    Matrix3_t RF(3,3);
-    Matrix3_t SomegaDotVel(3,3);
-    MatrixX_t I = MatrixX_t::Identity(3,3);
-    data_t qw = x(6);
-    data_t qx = x(7);
-    data_t qy = x(8);
-    data_t qz = x(9);
-    data_t dts = pow(dt,2);
+    Eigen::Matrix3d RF(3,3);
+    Eigen::Matrix3d SomegaDotVel(3,3);
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
+    double qw = x(6);
+    double qx = x(7);
+    double qy = x(8);
+    double qz = x(9);
+    double dts = pow(dt,2);
 
     computeRF(x.segment(6,4), &RF);
     computeSkewSymmetric(-x.segment(3,3), &SomegaDotVel);
@@ -238,22 +238,22 @@ void DroneModel::computeJacobian_Fu(MatrixX_t* Fu) const
         -qy*dt*0.5,  qx*dt*0.5,  qw*dt*0.5;    
 }
 
-void DroneModel::computeGbody(Vector3_t* g) const
+void DroneModel::computeGbody(Eigen::Vector3d* g) const
 {
-    data_t qw = x(6);
-    data_t qx = x(7);
-    data_t qy = x(8);
-    data_t qz = x(9);
+    double qw = x(6);
+    double qx = x(7);
+    double qy = x(8);
+    double qz = x(9);
     // squares
-    data_t qxs = qx*qx;
-    data_t qys = qy*qy;
+    double qxs = qx*qx;
+    double qys = qy*qy;
     *g << 
         2*(qx*qz+qw*qy) * (-GRAVITY),
         2*(qy*qz-qw*qx) * (-GRAVITY),
         1-2*qxs-2*qys   * (-GRAVITY);
 }
 
-void DroneModel::computeSomegaQuaternion(MatrixX_t* Somega) const
+void DroneModel::computeSomegaQuaternion(Eigen::MatrixXd* Somega) const
 {
     *Somega << 
         0   ,-u(3),-u(4),-u(5),
@@ -262,7 +262,7 @@ void DroneModel::computeSomegaQuaternion(MatrixX_t* Somega) const
         u(5), u(4),-u(3), 0;
 }
 
-void DroneModel::computeSomegaEuler(Matrix3_t* Somega) const
+void DroneModel::computeSomegaEuler(Eigen::Matrix3d* Somega) const
 {
     computeSkewSymmetric(u.segment(3,3), Somega);
 }
@@ -275,31 +275,31 @@ void DroneModel::computeSomegaEuler(Matrix3_t* Somega) const
 Consider the slips as control inputs, even though their value should be estimated
 x = [x,y,theta]^w*/
 
-KinematicTrackedVehicleModel::KinematicTrackedVehicleModel(const VectorX_t& xInit, const VectorX_t& uInit, const std::map<std::string, data_t>& params)
+KinematicTrackedVehicleModel::KinematicTrackedVehicleModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params)
     : MotionModel(xInit, uInit, params) 
 {
     this->r          = params.at("sproket_radius");
     this->B = params.at("distance_between_tracks");
 }
 
-void KinematicTrackedVehicleModel::compute_fu(const VectorX_t& u, VectorX_t* fu) const 
+void KinematicTrackedVehicleModel::compute_fu(const Eigen::VectorXd& u, Eigen::VectorXd* fu) const 
 {
-    data_t i_l = x(3);
-    data_t i_r = x(4);
-    data_t omega_l = u(0);
-    data_t omega_r = u(1);
-    data_t theta = x(2);
-    data_t v = 0.5 * r * (omega_l*(1 - i_l) + omega_r*(1 - i_r));
-    data_t omega = r * (omega_l*(1 - i_l) - omega_r*(1 - i_r)) / B;
+    double i_l = x(3);
+    double i_r = x(4);
+    double omega_l = u(0);
+    double omega_r = u(1);
+    double theta = x(2);
+    double v = 0.5 * r * (omega_l*(1 - i_l) + omega_r*(1 - i_r));
+    double omega = r * (omega_l*(1 - i_l) - omega_r*(1 - i_r)) / B;
     (*fu) << v*cos(theta), v*sin(theta), omega;
 }
 
-void KinematicTrackedVehicleModel::computeJacobian_Fx(MatrixX_t* Fx) const 
+void KinematicTrackedVehicleModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const 
 {
     Fx->setZero();
 }
 
-void KinematicTrackedVehicleModel::computeJacobian_Fu(MatrixX_t* Fu) const 
+void KinematicTrackedVehicleModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const 
 {
     Fu->setZero();
 }

@@ -27,14 +27,9 @@ find_package(tf2_ros REQUIRED)
 
 install(DIRECTORY
   launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}
 )
-
 
 add_library(lyapunovController include/${PROJECT_NAME}/lyapunovController.cpp)
 add_library(error_codes include/${PROJECT_NAME}/error_codes.cpp)
@@ -42,10 +37,8 @@ add_library(motionModels include/${PROJECT_NAME}/motionModels.cpp)
 add_library(generalPurpose include/${PROJECT_NAME}/generalPurpose.cpp)
 add_library(coppeliaSimNode  include/${PROJECT_NAME}/coppeliaSimNode.cpp)
 add_library(differential_drive_model  include/${PROJECT_NAME}/differential_drive_model.cpp)
-add_executable(unicycle_cl_node src/unicycle_cl_node.cpp)
-add_executable(unicycle_ol_node src/unicycle_ol_node.cpp)
 add_executable(differential_drive_cl_node src/differential_drive_cl_node.cpp)
-add_executable(differential_drive_cl_node src/differential_drive_cl_node.cpp)
+add_executable(differential_drive_ol_node src/differential_drive_ol_node.cpp)
 add_executable(slippage_controller_node src/slippage_controller_node.cpp)
 add_executable(feedbackTester src/feedbackTester.cpp)
 
@@ -57,10 +50,6 @@ ament_target_dependencies(coppeliaSimNode
 target_link_libraries(motionModels generalPurpose)
 target_link_libraries(lyapunovController motionModels)
 target_link_libraries(lyapunovController error_codes)
-target_link_libraries(unicycle_cl_node lyapunovController)
-target_link_libraries(unicycle_cl_node coppeliaSimNode)
-target_link_libraries(unicycle_ol_node motionModels)
-target_link_libraries(unicycle_ol_node coppeliaSimNode)
 target_link_libraries(differential_drive_ol_node motionModels)
 target_link_libraries(differential_drive_ol_node differential_drive_model)
 target_link_libraries(differential_drive_ol_node coppeliaSimNode)
@@ -71,14 +60,6 @@ target_link_libraries(slippage_controller_node lyapunovController)
 target_link_libraries(slippage_controller_node differential_drive_model)
 target_link_libraries(slippage_controller_node coppeliaSimNode)
 target_link_libraries(feedbackTester motionModels)
-
-target_include_directories(unicycle_cl_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-
-target_include_directories(unicycle_ol_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
 
 target_include_directories(differential_drive_cl_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -95,24 +76,6 @@ target_include_directories(slippage_controller_node PUBLIC
 target_include_directories(feedbackTester PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-
-ament_target_dependencies(unicycle_cl_node 
-  Eigen3 
-  rclcpp 
-  geometry_msgs 
-  sensor_msgs
-  std_msgs
-  tf2
-  tf2_ros)
-
-ament_target_dependencies(unicycle_ol_node 
-  Eigen3 
-  rclcpp 
-  geometry_msgs 
-  sensor_msgs
-  std_msgs
-  tf2
-  tf2_ros)
 
 ament_target_dependencies(differential_drive_cl_node 
   Eigen3 
@@ -148,14 +111,6 @@ ament_target_dependencies(feedbackTester
   tf2
   tf2_ros)
 
-install(TARGETS 
-  unicycle_cl_node
-  DESTINATION lib/${PROJECT_NAME}
-  )
-install(TARGETS 
-  unicycle_ol_node
-  DESTINATION lib/${PROJECT_NAME}
-  )
 install(TARGETS 
   differential_drive_cl_node
   DESTINATION lib/${PROJECT_NAME}
