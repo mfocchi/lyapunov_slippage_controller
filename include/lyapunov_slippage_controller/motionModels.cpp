@@ -10,6 +10,31 @@ MotionModel::MotionModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uI
     this->u = uInit;
 }
 
+// Assignment operator
+MotionModel& MotionModel::operator=(const MotionModel& other) {
+    if (this != &other) {
+        integrationType = other.integrationType;
+        x = other.x;
+        u = other.u;
+        u_prev = other.u_prev;
+        dt = other.dt;
+    }
+    return *this;
+}
+
+MotionModel& MotionModel::operator=(MotionModel&& other) noexcept {
+        if (this != &other) {
+            integrationType = std::move(other.integrationType);
+            x = std::move(other.x);
+            u = std::move(other.u);
+            u_prev = std::move(other.u_prev);
+            dt = other.dt;
+
+            other.dt = 0.0; // Mark the moved object as invalid or empty
+        }
+        return *this;
+    }
+
 void MotionModel::integrate() 
 {
     switch (integrationType)

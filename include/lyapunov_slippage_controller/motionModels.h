@@ -36,6 +36,24 @@ public:
     MotionModel(){}
     MotionModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params);
     ~MotionModel(){}
+    // Copy constructor
+    MotionModel(const MotionModel& other)
+        : integrationType(other.integrationType), x(other.x), u(other.u), u_prev(other.u_prev), dt(other.dt) {}
+
+    // Move constructor
+    MotionModel(MotionModel&& other) noexcept
+        : integrationType(std::move(other.integrationType)), x(std::move(other.x)),
+          u(std::move(other.u)), u_prev(std::move(other.u_prev)), dt(other.dt)
+    {
+        other.dt = 0.0; // Mark the moved object as invalid or empty
+    }
+
+    // Assignment operator
+    MotionModel& operator=(const MotionModel& other);
+
+    // Move assignment operator
+    MotionModel& operator=(MotionModel&& other) noexcept;
+    
     // define virtual void methods
     void integrate();
     virtual void computeJacobian_Fx(Eigen::MatrixXd* Fx) const = 0;
