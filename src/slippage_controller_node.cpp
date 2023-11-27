@@ -105,6 +105,7 @@ private:
     void trackTrajectory(sensor_msgs::msg::JointState* msg_out)
     {
 		Eigen::Vector2d u;
+		Eigen::Vector2d u_bar;
 		double t_now = getCurrentTime();
 		double dt = t_now - t_start;
 
@@ -114,15 +115,15 @@ private:
 		Eigen::Vector3d pose_bar = pose + pose_offset; 
 	
 		Ctrl->setCurrentTime(dt);
-		Ctrl->step(pose_bar, &u);
+		Ctrl->step(pose_bar, u_bar);
 		// conversion block u = f(alpha, alpha_dot, u_bar) 
-		convertskidSteering(u, &u);
+		convertskidSteering(u_bar, &u);
 		double v = u(0);
 		double omega = u(1);
 		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(v, omega);
 		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
-		double motor_vel_R = Model->getRightMotorRotationalSpeed();
+		double motor_vel_R = Model->getRightMotorRotationalSpeed();// mettere Wheel
 		
 		// compensate the longitudinal slip
 		double motor_vel_comp_L = motor_vel_L / (1-i_L_prev);
@@ -336,7 +337,7 @@ private:
 		this->alpha_prev_1.data = computeSideSlipAngle(u);
 	}
 
-	void convertskidSteering(const Eigen::Vector2d& u, Eigen::Vector2d* u_out) const
+	void convertskidSteering(const Eigen::Vector2d& u_bar, Eigen::Vector2d* u_out) const
 	{
 		/* Convert control inputs to compensate for a skid-steering 
 		*  vehicle
@@ -344,8 +345,8 @@ private:
 		double alpha_dot = computeAlphaDot();
 		double alpha = this->alpha_prev_1.data;
 
-		double v_conv = u(1) * cos(alpha);
-		double omega_conv = u(2) + alpha_dot;
+		double v_conv = u_bar(1) * cos(alpha);
+		double omega_conv = u_bar(2) + alpha_dot;
 		*u_out << v_conv, omega_conv;
 	}
 
@@ -371,7 +372,6 @@ public:
 		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_singularity_epsilon", 0.01);
 
-		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
     	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
     	declare_parameter("x_des_m", std::vector<double>({0.0,0.0})); // it is used only when copy_trajectory is true

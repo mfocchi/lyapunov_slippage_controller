@@ -38,14 +38,14 @@ private:
     int getIndexIntegerBasedOnTime(double t) const;
     double getIndexFractionBasedOnTime(double t) const;
     bool endReached();
-    void computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d* vel_out);
+    void computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d  & vel_out);
     void updateTrackingErrors(const Eigen::Vector3d& pose_ref, const Eigen::Vector3d& pose);
     double computeMaxTime() const;
 public:
     LyapController(double Kp, double Ktheta, double dt);
     ~LyapController(){u_desired.clear(); pose_desired.clear();}
 
-    void step(const Eigen::Vector3d& pose, Eigen::Vector2d* vel_out);
+    void step(const Eigen::Vector3d& pose, Eigen::Vector2d & vel_out);
 
     double getTimeInterval() const {return RobotModel->getStepTime();}
     double getGainKp() const {return Kp;}

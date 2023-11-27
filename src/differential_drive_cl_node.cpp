@@ -98,7 +98,7 @@ private:
 		double dt = t_now - t_start;
 
 		LyapCtrl->setCurrentTime(dt);
-		LyapCtrl->step(pose, &u);
+		LyapCtrl->step(pose, u);
 		
 		double v = u(0);
 		double omega = u(1);

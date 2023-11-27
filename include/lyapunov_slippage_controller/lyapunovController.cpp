@@ -28,7 +28,7 @@ LyapController::LyapController(double Kp, double Ktheta, double dt)
 }
 
 
-void LyapController::step(const Eigen::Vector3d& pose, Eigen::Vector2d* vel_out)
+void LyapController::step(const Eigen::Vector3d& pose, Eigen::Vector2d & vel_out)
 {
     computeLaw(pose, vel_out);
     endReached();
@@ -40,17 +40,17 @@ INPUTS
 OUTPUTS
     u_out: control input obtained following the control law
 */
-void LyapController::computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d* u_out)
+void LyapController::computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d  & u_out)
 {
     if(u_desired.empty() || pose_desired.empty())
     {
-        u_out->setZero();
+        u_out.setZero();
         throw DESIRED_TRAJECTORY_INCOMPLETE;
     }
     else if(finished)
     {
         std::cout << "Trajectory control finished" << std::endl;
-        u_out->setZero();
+        u_out.setZero();
         return;
     }
 
@@ -69,7 +69,7 @@ void LyapController::computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d* u_
 
     du(0) = -Kp * e_xy * cos(pose(2) - psi);
     du(1) = -Ktheta * e_theta - v_ref * sinc(e_theta * 0.5) * sin(psi - alpha * 0.5);
-    (*u_out) << u_ref + du;    
+    (u_out) << u_ref + du;    
 }
 
 void LyapController::updateTrackingErrors(const Eigen::Vector3d& pose_ref, const Eigen::Vector3d& pose)
