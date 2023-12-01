@@ -18,6 +18,7 @@
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
+#define LONG_SLIP_ENABLED false
 
 using namespace std::chrono_literals;
 
@@ -110,14 +111,21 @@ private:
 		double dt = t_now - t_start;
 
 		// compute an estimation of the longitudinal and lateral slips
-
-		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
+		// Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
+		Eigen::Vector3d pose_offset(0.0, 0.0, 0.0);
 		Eigen::Vector3d pose_bar = pose + pose_offset; 
 	
 		Ctrl->setCurrentTime(dt);
+
 		Ctrl->step(pose_bar, u_bar);
+		std::cout<< std::endl;
+
+		std::cout<<"u_bar control inputs: " << u_bar(0) << ", " << u_bar(1) << std::endl;
 		// conversion block u = f(alpha, alpha_dot, u_bar) 
 		convertskidSteering(u_bar, &u);
+		std::cout<<"u control inputs: " << u(0) << ", " << u(1) << std::endl;
+		std::cout<< std::endl;
+
 		double v = u(0);
 		double omega = u(1);
 		// conversion block from unicycle to differential drive
@@ -126,9 +134,16 @@ private:
 		double motor_vel_R = Model->getRightMotorRotationalSpeed();// mettere Wheel
 		
 		// compensate the longitudinal slip
-		double motor_vel_comp_L = motor_vel_L / (1-i_L_prev);
-		double motor_vel_comp_R = motor_vel_R / (1-i_R_prev);
+		double motor_vel_comp_L = motor_vel_L;
+		double motor_vel_comp_R = motor_vel_R;
 
+		if(LONG_SLIP_ENABLED)
+		{
+			double motor_vel_comp_L /= (1-this->i_L_prev);
+			double motor_vel_comp_R /= (1-this->i_R_prev);
+		}
+
+		std::cout<<"wheels control input: " << motor_vel_comp_L << ", " << motor_vel_comp_R << std::endl;
 		msg_out->name = {"left_sprocket", "right_sprocket"};
 		msg_out->velocity = std::vector<double>{
 			motor_vel_comp_L, 
@@ -136,6 +151,7 @@ private:
 		};
 		// estimate alpha, alpha_dot
 		updateSlipsPrev(u);
+
     }
 
 	void getTrackingErrorMsg(geometry_msgs::msg::Vector3Stamped* msg)
@@ -230,7 +246,7 @@ private:
 	double computeSideSlipAngle(const Eigen::Vector2d& u) const
 	{
 		double R = computeTurningRadius(u(0), u(1));
-		if(u(1) == 0.0 || u(2) == 0.0)
+		if(u(0) == 0.0 || u(1) == 0.0)
 		{
 			/* In this situation the vehicle is going straight
 			*  or turning on the spot. In both cases there is no
@@ -335,6 +351,10 @@ private:
 		this->alpha_prev_2.data = this->alpha_prev_1.data;
 		this->alpha_prev_1.time = getCurrentTime();
 		this->alpha_prev_1.data = computeSideSlipAngle(u);
+		std::cout << "i_L_prev" << i_L_prev << "i_R_prev " << i_R_prev << std::endl;
+		std::cout << "alpha_prev_2.data" << this->alpha_prev_2.data << "alpha_prev_2.time " << this->alpha_prev_2.time << std::endl;
+		std::cout << "alpha_prev_1.data" << this->alpha_prev_1.data << "alpha_prev_1.time " << this->alpha_prev_1.time << std::endl;
+
 	}
 
 	void convertskidSteering(const Eigen::Vector2d& u_bar, Eigen::Vector2d* u_out) const
@@ -342,11 +362,12 @@ private:
 		/* Convert control inputs to compensate for a skid-steering 
 		*  vehicle
 		*/
-		double alpha_dot = computeAlphaDot();
+		// double alpha_dot = computeAlphaDot();
+		double alpha_dot = 0.0;
 		double alpha = this->alpha_prev_1.data;
 
-		double v_conv = u_bar(1) * cos(alpha);
-		double omega_conv = u_bar(2) + alpha_dot;
+		double v_conv = u_bar(0) * cos(alpha);
+		double omega_conv = u_bar(1) + alpha_dot;
 		*u_out << v_conv, omega_conv;
 	}
 
@@ -366,6 +387,8 @@ public:
 		declare_parameter("time_for_pose_init_s", 0.5);
 		declare_parameter("automatic_pose_init", false);
 		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
+
+		// declare_parameter("verbose_level", 0); // 0:no print 1: only controller
 
 		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
@@ -402,6 +425,12 @@ public:
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
 
+		alpha_prev_1.data = 0.0; // store alpha value at time dt*(k-2)
+		alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
+		alpha_prev_2.data = 0.0; // store alpha value at time dt*(k-1)
+		alpha_prev_2.time = 0.0; // store alpha value at time dt*(k-1)
+		i_L_prev = 0.0; // store i_L value at time dt*(k-1)
+		i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 		
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));

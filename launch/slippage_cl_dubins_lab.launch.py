@@ -40,6 +40,7 @@ def generate_launch_description():
         executable="slippage_controller_node",
         name="ctrl",
         output='screen',
+        emulate_tty=True,
         parameters=[
             {"wheel_radius_m": 0.0856},
             {"wheels_distance_m": 0.606},

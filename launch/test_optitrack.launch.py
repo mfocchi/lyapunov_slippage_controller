@@ -15,7 +15,7 @@ def generate_launch_description():
     )
     
     test_node = Node(
-        package="unicycle_controller",
+        package="lyapunov_slippage_controller",
         executable="feedbackTester",
         name="test",
         output='screen',
