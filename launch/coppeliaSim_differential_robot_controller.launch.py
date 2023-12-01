@@ -27,7 +27,7 @@ def generate_launch_description():
         ]
     )
     controller_node = Node(
-        package="unicycle_controller",
+        package="lyapunov_slippage_controller",
         executable="lyapunovControllerNode",
         name="ctrl",
         output='screen',

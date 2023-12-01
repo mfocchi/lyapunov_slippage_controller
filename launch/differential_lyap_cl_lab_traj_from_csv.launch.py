@@ -53,7 +53,7 @@ def generate_launch_description():
     )
     
     controller_node = Node(
-        package="unicycle_controller",
+        package="lyapunov_slippage_controller",
         executable="differential_drive_cl_node",
         name="ctrl",
         output='screen',

@@ -36,7 +36,7 @@ def generate_launch_description():
     Kp = 0.1
     Kth = 2.0
     controller_node = Node(
-        package="unicycle_controller",
+        package="lyapunov_slippage_controller",
         executable="differential_drive_cl_node",
         name="ctrl",
         output='screen',
