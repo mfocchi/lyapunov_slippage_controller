@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/logging.hpp"
+
 #include "std_msgs/msg/string.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Matrix3x3.h"
@@ -337,9 +339,13 @@ private:
 
 	double computeAlphaDot() const
 	{
-		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
-		if(dt == 0.0)
+		//double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
+
+		double dt = 0.001;
+		if(dt == 0.0){
+			RCLCPP_ERROR(this->get_logger(), "dt = 0 in alpha derivative!");
 			throw SINGULARITY_DT_ALPHA_DOT;
+			}
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
 		return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
@@ -368,7 +374,7 @@ private:
 		this->alpha_dot = computeAlphaDot();
 
 		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
-		double omega_conv = u_bar(1) + alpha_dot;
+		double omega_conv = u_bar(1) + this->alpha_dot;
 		*u_out << v_conv, omega_conv;
 	}
 
@@ -429,10 +435,10 @@ public:
 		alpha_dot_prev = 0.0;
 		alpha_dot = 0.0;
 
-		alpha_prev_1.data = 0.0; // store alpha value at time dt*(k-2)
+		alpha_prev_1.data = pub_dt / 1000.0; // store alpha value at time dt*(k-2)
 		alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
 		alpha_prev_2.data = 0.0; // store alpha value at time dt*(k-1)
-		alpha_prev_2.time = pub_dt / 1000.0; // store alpha value at time dt*(k-1)
+		alpha_prev_2.time = 0.0; // store alpha value at time dt*(k-1)
 		i_L_prev = 0.0; // store i_L value at time dt*(k-1)
 		i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 		
