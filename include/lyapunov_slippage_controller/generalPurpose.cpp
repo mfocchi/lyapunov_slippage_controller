@@ -15,34 +15,40 @@ void computeQuaternion(double roll, double pitch, double yaw, std::vector<double
     q->at(3) = cr * cp * cy - sr * sp * sy;
 }
 
-void fillMatrix(Eigen::MatrixXd* M, std::vector<double> vec)
+Eigen::MatrixXd fillMatrix(std::vector<double> vec)
 {
+    Eigen::MatrixXd M(vec.size(), vec.size());
     for(int i = 0; i < int(vec.size()); i++)
     {
-        (*M)(i) = vec.at(i);
+        M(i) = vec.at(i);
     }
+    return M;
 }
 
-void fillVector(Eigen::VectorXd* V, std::vector<double> vec)
+Eigen::VectorXd fillVector(std::vector<double> vec)
 {
+    Eigen::VectorXd V(vec.size());
     for(int i = 0; i < int(vec.size()); i++)
     {
-        (*V)(i) = vec.at(i);
+        V(i) = vec.at(i);
     }
+    return V;
 }
 
-void compute2DRotation(double angle, Eigen::Matrix2d* R_out)
+Eigen::Matrix2d compute2DRotation(double angle)
 {
-    *R_out << 
+    Eigen::Matrix2d R;
+    R << 
         cos(angle), -sin(angle),
         sin(angle),  cos(angle);
-        
+    return R;        
 }
 
-void computeRF(const Eigen::VectorXd& q, Eigen::Matrix3d* RF_out)
+Eigen::Matrix3d computeRF(const Eigen::VectorXd& q)
 {
     /*
-    Compute the transformation from moving to world reference frame*/
+    Compute the transformation from moving to world reference frame
+    */
     double qw = q(0);
     double qx = q(1);
     double qy = q(2);
@@ -52,14 +58,15 @@ void computeRF(const Eigen::VectorXd& q, Eigen::Matrix3d* RF_out)
     double qys = qy*qy;
     double qzs = qz*qz;
     // double qws = qw*qw;
-
-    *RF_out << 
+    Eigen::Matrix3d R;
+    R << 
         1-2*qys-2*qzs,    2*(qx*qy-qw*qz),  2*(qx*qz+qw*qy),
         2*(qx*qy+qw*qz),  1-2*qxs-2*qzs,    2*(qy*qz-qw*qx),
         2*(qx*qz-qw*qy),  2*(qy*qz+qw*qx),  1-2*qxs-2*qys;
+    return R;
 }
 
-void computeRFdotVecDerivative(const Eigen::VectorXd& q, const Eigen::Vector3d& vec, Eigen::MatrixXd* Dq_out)
+Eigen::MatrixXd computeRFdotVecDerivative(const Eigen::VectorXd& q, const Eigen::Vector3d& vec)
 {
     double qw = q(0);
     double qx = q(1);
@@ -69,23 +76,27 @@ void computeRFdotVecDerivative(const Eigen::VectorXd& q, const Eigen::Vector3d& 
     double X = vec(0);
     double Y = vec(1);
     double Z = vec(2);
-    *Dq_out <<
+    Eigen::MatrixXd Dq(vec.size(), q.size());
+    Dq <<
         2*(Z*qy - Y*qz), 2*(Y*qy + Z*qz), 2*(Y*qx + Z*qw - 2*X*qy), 2*(Z*qy * Y*qw - 2*X*qz),
         2*(X*qz - Z*qx), 2*(X*qy - Z*qw - 2*Y*qx), 2*(X*qx + Z*qz), 2*(X*qw + Z*qy - 2*Y*qz),
         2*(Y*qx - X*qy), 2*(X*qz + Y*qw - 2*Z*qx), 2*(Y*qz - X*qw - 2*Z*qy), 2*(X*qx + Y*qy);
+    return Dq;
 }
 
-void computeSkewSymmetric(const Eigen::Vector3d& vec, Eigen::Matrix3d* Skw)
+Eigen::Matrix3d computeSkewSymmetric(const Eigen::Vector3d& vec)
 {
     /* compute skew symmetrix matrix given a vector. 
     Skw(x)*y is equivalent to x cross product y */
     double x = vec(0);
     double y = vec(1);
     double z = vec(2);
-    *Skw << 
+    Eigen::Matrix3d Skw;
+    Skw << 
          0,-z, y,
          z, 0,-x,
         -y, x, 0;
+    return Skw;
 }
 
 void repeatMatrixDiagonal(const Eigen::MatrixXd& M, Eigen::MatrixXd* Mout)

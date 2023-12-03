@@ -30,7 +30,7 @@ protected:
     void setPrevControlInput(const Eigen::VectorXd& u);
     void integrateEuler();
     void integrateTrapezoid(); 
-    virtual void compute_fu( const Eigen::VectorXd& uk, Eigen::VectorXd* fu) const = 0;
+    virtual Eigen::VectorXd compute_fu(const Eigen::VectorXd& uk) const = 0;
     
 public:
     MotionModel(){}
@@ -56,11 +56,11 @@ public:
     
     // define virtual void methods
     void integrate();
-    virtual void computeJacobian_Fx(Eigen::MatrixXd* Fx) const = 0;
-    virtual void computeJacobian_Fu(Eigen::MatrixXd* Fu) const = 0;
+    virtual Eigen::MatrixXd computeJacobian_Fx() const = 0;
+    virtual Eigen::MatrixXd computeJacobian_Fu() const = 0;
     //getters
-    void getState(Eigen::VectorXd *x_out) const;
-    double getStepTime() const {return dt;}
+    Eigen::VectorXd getState() const {return this->x;}
+    double getStepTime() const {return this->dt;}
     int getControlInputSize() const;                    
     int getStateSize() const;                    
     //setters
@@ -75,29 +75,29 @@ public:
 class UnicycleModel : public MotionModel
 {
 protected:
-    void compute_fu( const Eigen::VectorXd& u, Eigen::VectorXd* fu) const override;
+    Eigen::VectorXd compute_fu(const Eigen::VectorXd& uk) const override;
 public:
     // u=[v,w]
     UnicycleModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params);
     
-    void computeJacobian_Fx(Eigen::MatrixXd* Fx) const override;
-    void computeJacobian_Fu(Eigen::MatrixXd* Fu) const override;
+    Eigen::MatrixXd computeJacobian_Fx() const override;
+    Eigen::MatrixXd computeJacobian_Fu() const override;
 };
 
 
 class DroneModel : public MotionModel
 {
 protected:
-    void computeGbody(Eigen::Vector3d* g) const;  
-    void computeSomegaQuaternion(Eigen::MatrixXd* Somega) const;
-    void computeSomegaEuler(Eigen::Matrix3d* Somega) const;
-    void compute_fu(const Eigen::VectorXd& u, Eigen::VectorXd* fu) const override;
+    Eigen::Vector3d computeGbody() const;  
+    Eigen::Matrix4d computeSomegaQuaternion() const;
+    Eigen::Matrix3d computeSomegaEuler() const;
+    Eigen::VectorXd compute_fu(const Eigen::VectorXd& uk) const override;
 
 public:
     // u=[ax,ay,az,omegax,omegay,omegaz]
     DroneModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params);
-    void computeJacobian_Fx(Eigen::MatrixXd* Fx) const override;
-    void computeJacobian_Fu(Eigen::MatrixXd* Fu) const override;
+    Eigen::MatrixXd computeJacobian_Fx() const override;
+    Eigen::MatrixXd computeJacobian_Fu() const override;
 };
 
 
@@ -106,13 +106,13 @@ class KinematicTrackedVehicleModel : public MotionModel
 protected:
     double r; // [m] sproket_radius
     double B; // [m] distance_between_tracks
-    void compute_fu(const Eigen::VectorXd& u, Eigen::VectorXd* fu) const override;
+    Eigen::VectorXd compute_fu(const Eigen::VectorXd& uk) const override;
     // void extract();
 public:
     // u=[omega_left, omega_right, slip_long_left, slip_long_right]
     KinematicTrackedVehicleModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params);
-    void computeJacobian_Fx(Eigen::MatrixXd* Fx) const override;
-    void computeJacobian_Fu(Eigen::MatrixXd* Fu) const override;
+    Eigen::MatrixXd computeJacobian_Fx() const override;
+    Eigen::MatrixXd computeJacobian_Fu() const override;
 };
 
 #endif

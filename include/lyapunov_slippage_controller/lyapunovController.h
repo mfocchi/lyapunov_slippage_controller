@@ -38,14 +38,14 @@ private:
     int getIndexIntegerBasedOnTime(double t) const;
     double getIndexFractionBasedOnTime(double t) const;
     bool endReached();
-    void computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d  & vel_out);
+    Eigen::Vector2d computeLaw(const Eigen::Vector3d& pose);
     void updateTrackingErrors(const Eigen::Vector3d& pose_ref, const Eigen::Vector3d& pose);
     double computeMaxTime() const;
 public:
     LyapController(double Kp, double Ktheta, double dt);
     ~LyapController(){u_desired.clear(); pose_desired.clear();}
 
-    void step(const Eigen::Vector3d& pose, Eigen::Vector2d & vel_out);
+    Eigen::Vector2d run(const Eigen::Vector3d& pose);
 
     double getTimeInterval() const {return RobotModel->getStepTime();}
     double getGainKp() const {return Kp;}
@@ -60,7 +60,7 @@ public:
 
     void copyTrajectory(const std::vector<double>& v, const std::vector<double>& omega, const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& theta);
     void generateTrajectory();
-    void integrateState(const Eigen::Vector2d& u, Eigen::Vector3d* pose_next);
+    Eigen::Vector3d integrateState(const Eigen::Vector2d& u);
     void addStateDesired(const Eigen::Vector3d& pose_des);
 
     void addToInputDesired(double v, double omega);
@@ -68,8 +68,8 @@ public:
     void setCurrentTime(double t) {this->current_time = t;}
     void setStateOffset(double x, double y, double theta) {this->pose_offset << x,y,theta;}
 
-    void getControlInputDesiredOnTime(double t, Eigen::Vector2d* u_desired_out) const;
-    void getPoseDesiredOnTime(double t, Eigen::Vector3d* pose_desired_out) const;
+    Eigen::Vector2d getControlInputDesiredOnTime(double t) const;
+    Eigen::Vector3d getPoseDesiredOnTime(double t) const;
     std::string stringSetupInfo() const;
 
 };      

@@ -121,7 +121,6 @@ private:
 	controller and finally the effects of slippage are compensated by a transformer */
     sensor_msgs::msg::JointState::SharedPtr trackTrajectory()
     {
-		Eigen::Vector2d u_bar;
 		double t_now = getCurrentTime();
 		double dt = t_now - t_start;
 
@@ -131,7 +130,7 @@ private:
 	
 		Ctrl->setCurrentTime(dt);
 
-		Ctrl->step(pose_bar, u_bar);
+		Eigen::Vector2d u_bar = Ctrl->run(pose_bar);
 		std::cout<< std::endl;
 
 		std::cout<<"u_bar control inputs: " << u_bar(0) << ", " << u_bar(1) << std::endl;

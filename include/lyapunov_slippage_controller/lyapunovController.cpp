@@ -28,10 +28,11 @@ LyapController::LyapController(double Kp, double Ktheta, double dt)
 }
 
 
-void LyapController::step(const Eigen::Vector3d& pose, Eigen::Vector2d & vel_out)
+Eigen::Vector2d LyapController::run(const Eigen::Vector3d& pose)
 {
-    computeLaw(pose, vel_out);
+    Eigen::Vector2d u = computeLaw(pose);
     endReached();
+    return u;
 }
 
 /*
@@ -40,26 +41,25 @@ INPUTS
 OUTPUTS
     u_out: control input obtained following the control law
 */
-void LyapController::computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d  & u_out)
+Eigen::Vector2d LyapController::computeLaw(const Eigen::Vector3d& pose)
 {
+    Eigen::Vector2d u_ctrl;
+    u_ctrl.setZero();
     if(u_desired.empty() || pose_desired.empty())
     {
-        u_out.setZero();
         throw DESIRED_TRAJECTORY_INCOMPLETE;
+        return u_ctrl;
     }
     else if(finished)
     {
         std::cout << "Trajectory control finished" << std::endl;
-        u_out.setZero();
-        return;
+        return u_ctrl;
     }
 
     Eigen::Vector2d du;
-    Eigen::Vector2d u_ref;
-    Eigen::Vector3d pose_ref;
     
-    getControlInputDesiredOnTime(current_time, &u_ref);
-    getPoseDesiredOnTime(current_time, &pose_ref);
+    Eigen::Vector2d u_ref = getControlInputDesiredOnTime(current_time);
+    Eigen::Vector3d pose_ref = getPoseDesiredOnTime(current_time);
     updateTrackingErrors(pose_ref, pose);
 
     double alpha = pose(2) + pose_ref(2);
@@ -69,7 +69,8 @@ void LyapController::computeLaw(const Eigen::Vector3d& pose, Eigen::Vector2d  & 
 
     du(0) = -Kp * e_xy * cos(pose(2) - psi);
     du(1) = -Ktheta * e_theta - v_ref * sinc(e_theta * 0.5) * sin(psi - alpha * 0.5);
-    (u_out) << u_ref + du;    
+    u_ctrl << u_ref + du;   
+    return u_ctrl; 
 }
 
 void LyapController::updateTrackingErrors(const Eigen::Vector3d& pose_ref, const Eigen::Vector3d& pose)
@@ -115,21 +116,18 @@ void LyapController::generateTrajectory()
     RobotModel->resetState(pose_offset);
     for(int i = 0; i < int(u_desired.size()); i++)
     {
-        Eigen::Vector3d pose_next;
-        integrateState(u_desired.at(i), &pose_next);
+        Eigen::Vector3d pose_next = integrateState(u_desired.at(i));
         addStateDesired(pose_next);
     }
     this->time_end = computeMaxTime(); // uses the dt and state dimension to calculate tf
     finished = false;
 }
 
-void LyapController::integrateState(const Eigen::Vector2d& u, Eigen::Vector3d* pose_next)
+Eigen::Vector3d LyapController::integrateState(const Eigen::Vector2d& u)
 {
-    Eigen::VectorXd pose_next_dyn(3);
     RobotModel->setControlInput(u);
     RobotModel->integrate();
-    RobotModel->getState(&pose_next_dyn);
-    *pose_next << pose_next_dyn;
+    return RobotModel->getState();
 }
 
 void LyapController::addStateDesired(const Eigen::Vector3d& pose_des)
@@ -150,23 +148,24 @@ void LyapController::addToInputDesired(double v, double omega)
 Find the desired control input at a given time. The output vector of 
 pose is obatined via linear interpolation between values
 */
-void LyapController::getControlInputDesiredOnTime(double t, Eigen::Vector2d* u_desired_out) const
+Eigen::Vector2d LyapController::getControlInputDesiredOnTime(double t) const
 {
-    Eigen::Vector2d delta_u;
-
+    Eigen::Vector2d u_des;
     int index = getIndexIntegerBasedOnTime(t);
-    (*u_desired_out) << u_desired.at(index); // takes only a fraction
+    u_des << u_desired.at(index); // takes only a fraction
+    return u_des;
 }
 
 /*
 Find the desired pose at a given time. The output vector of 
 pose is obatined via linear interpolation between values
 */
-void LyapController::getPoseDesiredOnTime(double t, Eigen::Vector3d* pose_desired_out) const
+Eigen::Vector3d LyapController::getPoseDesiredOnTime(double t) const
 {
-    Eigen::Vector3d delta_pose;
+    Eigen::Vector3d pose_des;
     int index = getIndexIntegerBasedOnTime(t);
-    (*pose_desired_out) << pose_desired.at(index); // takes only a fraction
+    pose_des << pose_desired.at(index); // takes only a fraction
+    return pose_des;
 }
 
 int LyapController::getIndexIntegerBasedOnTime(double t) const

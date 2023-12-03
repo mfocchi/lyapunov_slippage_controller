@@ -54,11 +54,9 @@ void MotionModel::integrateTrapezoid()
 {
     /*Integration via trapezoid rule*/
     int nx = getStateSize();
-    Eigen::VectorXd fu_prev(nx);
-    Eigen::VectorXd fu_next(nx);
+    Eigen::VectorXd fu_prev = compute_fu(u_prev);
+    Eigen::VectorXd fu_next = compute_fu(u);
     Eigen::VectorXd x_dot(nx);
-    compute_fu(u_prev, &fu_prev);
-    compute_fu(u,      &fu_next);
 
     x_dot << 0.5 * (fu_next + fu_prev);
     
@@ -70,8 +68,7 @@ void MotionModel::integrateEuler()
 {
     /*Integration via trapezoid rule*/
     int nx = getStateSize();
-    Eigen::VectorXd x_dot(nx);
-    compute_fu(u, &x_dot);
+    Eigen::VectorXd x_dot = compute_fu(u);
     
     x.segment(0,nx) << (x.segment(0,nx) + dt * x_dot).eval(); 
     u_prev = u; // save most recent value for the control input
@@ -87,11 +84,6 @@ int MotionModel::getStateSize() const
 {
     return this->x.size();
 }   
-
-void MotionModel::getState(Eigen::VectorXd *x_out) const
-{
-    *x_out = this->x;
-}
 
 void MotionModel::setPrevControlInput(const Eigen::VectorXd& u)
 {
@@ -115,37 +107,42 @@ UnicycleModel::UnicycleModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd
 
 
 
-void UnicycleModel::compute_fu(const Eigen::VectorXd& uk, Eigen::VectorXd* fu) const
+Eigen::VectorXd UnicycleModel::compute_fu(const Eigen::VectorXd& uk) const
 {
     assert(x.size() >= 3);
-    assert(fu->size() == 3);
-
+    int nx = getStateSize();
+    Eigen::VectorXd fu(nx);
     double theta = x(2);
-    *fu << uk(0) * std::cos(theta), uk(0) * std::sin(theta), uk(1);
+    fu << uk(0) * std::cos(theta), uk(0) * std::sin(theta), uk(1);
+    return fu;
 }
 
-void UnicycleModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const
+Eigen::MatrixXd UnicycleModel::computeJacobian_Fx() const
 {
     assert(x.size() >= 3);
-    assert(Fx->size() > 0); // has to be pre-initialized
+    int nx = getStateSize();
+    Eigen::MatrixXd Fx(nx,nx); 
     double theta = x(2);
-    (*Fx) << 
+    Fx << 
         1, 0, -u(0)*sin(theta)*dt,
         0, 1,  u(0)*cos(theta)*dt,
         0, 0,  1;
+    return Fx;
 }
 
-void UnicycleModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
+Eigen::MatrixXd UnicycleModel::computeJacobian_Fu() const
 {
     // Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
-
     assert(x.size() >= 3);
-    assert(Fu->size() > 0); // has to be pre-initialized
+    int nx = getStateSize();
+    int nu = getControlInputSize();
+    Eigen::MatrixXd Fu(nx,nu);
     double theta = x(2);
-    (*Fu) << 
+    Fu << 
         cos(theta)*dt, 0, 
         sin(theta)*dt, 0,
         0,             dt;
+    return Fu;
 }
 
 // DRONE ----------------------------------------------------
@@ -153,84 +150,76 @@ void UnicycleModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
 DroneModel::DroneModel(const Eigen::VectorXd& xInit, const Eigen::VectorXd& uInit, const std::map<std::string, double>& params)
     : MotionModel(xInit, uInit, params) {}
 
-void DroneModel::compute_fu(const Eigen::VectorXd& uk, Eigen::VectorXd* fu) const
+Eigen::VectorXd DroneModel::compute_fu(const Eigen::VectorXd& uk) const
 {
-    assert(x.size() >= 10);
     // Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
     Eigen::VectorXd q_next(4);
-    Eigen::MatrixXd SomegaQ(4,4);
-    Eigen::Matrix3d SomegaE;
-    Eigen::Matrix3d RF;
     Eigen::Vector3d a_world; // drone acceleration in the world reference frame
     Eigen::Vector3d a_body;
     Eigen::Vector3d g_world(0,0,GRAVITY);
     // Eigen::Vector3d g_body;
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(4,4);
     
-    computeRF(x.segment(6,4), &RF);
-    computeSomegaQuaternion(&SomegaQ);
-    computeSomegaEuler(&SomegaE);
+    Eigen::Matrix3d RF = computeRF(x.segment(6,4));
+    Eigen::Matrix4d SomegaQ = computeSomegaQuaternion();
+    Eigen::Matrix3d SomegaE = computeSomegaEuler();
     a_body << uk.segment(0,3) - SomegaE * x.segment(3,3) - RF.transpose() * g_world;
     // a_body << uk.segment(0,3) - RF.transpose() * g_world;
     a_world << RF * a_body;
     
-    fu->segment(3,3) <<
+    Eigen::VectorXd fu(getStateSize());
+    fu.segment(3,3) <<
         a_body;
-    fu->segment(0,3) <<
+    fu.segment(0,3) <<
         RF * x.segment(3,3) + 0.5 * dt * a_world;
-    fu->segment(6,4) << SomegaQ * 0.5 * x.segment(6,4);
+    fu.segment(6,4) << SomegaQ * 0.5 * x.segment(6,4);
+    return fu;
 }
 
 
-void DroneModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const
+Eigen::MatrixXd DroneModel::computeJacobian_Fx() const
 {
-    assert(x.size() >= 10);
-    assert(Fx->size() > 0);
     Eigen::Vector3d vecTmp;
-    Eigen::Matrix3d RF(3,3);
-    Eigen::Matrix3d SomegaE;
+    Eigen::Matrix3d RF = computeRF(x.segment(6,4));
+    Eigen::Matrix3d SomegaE = computeSomegaEuler();
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
-    Eigen::MatrixXd RdotVec(3,4); // derivative wrt to q of R(q)*V
     Eigen::Vector3d g_world(0,0,GRAVITY);
-    computeSomegaEuler(&SomegaE);
-    computeRF(x.segment(6,4), &RF);
+    
 
     double omegaX = this->u(3);
     double omegaY = this->u(4);
     double omegaZ = this->u(5);
-    
-    Fx->setZero();
-    Fx->block(0,0,3,3) << // d position / d[x,y,z]
+    int nx = getStateSize();
+    Eigen::MatrixXd Fx(nx, nx);
+    Fx.setZero();
+    Fx.block(0,0,3,3) << // d position / d[x,y,z]
         I;
-    Fx->block(0,3,3,3) << // d position / d[u,v,w]
+    Fx.block(0,3,3,3) << // d position / d[u,v,w]
         RF*dt*(I - 0.5*dt*SomegaE);
     vecTmp << 
         dt*(x.segment(3,3) + 0.5*dt*(u.segment(0,3) - SomegaE*x.segment(3,3)));
-    computeRFdotVecDerivative(x.segment(6,4), vecTmp, &RdotVec);
-    Fx->block(0,6,3,4) << // d position / d[q]
+    Eigen::MatrixXd RdotVec = computeRFdotVecDerivative(x.segment(6,4), vecTmp); // derivative wrt to q of R(q)*V
+
+    Fx.block(0,6,3,4) << // d position / d[q]
         RdotVec;
 
-    Fx->block(3,3,3,3) << // d vel / d[u,v,z]
+    Fx.block(3,3,3,3) << // d vel / d[u,v,z]
         I - dt*SomegaE;
     vecTmp << 
         0,0,GRAVITY;
-    computeRFdotVecDerivative(x.segment(6,4), vecTmp, &RdotVec);
-    Fx->block(3,6,3,4) << // d vel / d[q]
+    Fx.block(3,6,3,4) << // d vel / d[q]
         -dt*RdotVec;
-    Fx->block(6,6,4,4) << // d rot / d[q]
+    Fx.block(6,6,4,4) << // d rot / d[q]
         1,-dt*omegaX*0.5, -dt*omegaY*0.5, -dt*omegaZ*0.5,
         dt*omegaX*0.5, 1,  dt*omegaZ*0.5, -dt*omegaY*0.5,
         dt*omegaY*0.5, -dt*omegaZ*0.5  ,1, dt*omegaX*0.5,
         dt*omegaZ*0.5,  dt*omegaY*0.5  ,-dt*omegaX*0.5,1;
+    return Fx;
 }
 
-void DroneModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
+Eigen::MatrixXd DroneModel::computeJacobian_Fu() const
 {
-    assert(x.size() >= 10);
-    assert(Fu->size() > 0);
-    Eigen::Matrix3d RF(3,3);
-    Eigen::Matrix3d SomegaDotVel(3,3);
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
     double qw = x(6);
     double qx = x(7);
@@ -238,32 +227,33 @@ void DroneModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const
     double qz = x(9);
     double dts = pow(dt,2);
 
-    computeRF(x.segment(6,4), &RF);
-    computeSkewSymmetric(-x.segment(3,3), &SomegaDotVel);
+    Eigen::Matrix3d RF = computeRF(x.segment(6,4));
+    Eigen::Matrix3d SomegaDotVel = computeSkewSymmetric(-x.segment(3,3));
 
-
-    Fu->setZero();
-    Fu->block(0,0,3,3) << //d[x]/d[a]
+    Eigen::MatrixXd Fu(getStateSize(), getControlInputSize());
+    Fu.setZero();
+    Fu.block(0,0,3,3) << //d[x]/d[a]
         dts * 0.5 * RF;
     // fun fact: the derivative of the skew symmetric SomegaE*vector
     //           in the omega, is the skew symmetric matrix of the 
     //           negative vector
-    Fu->block(0,3,3,3) << //d[x]/d[omega]
+    Fu.block(0,3,3,3) << //d[x]/d[omega]
         -dts*0.5*RF*SomegaDotVel;
 
-    Fu->block(3,0,3,3) << //d[vel]/d[a]
+    Fu.block(3,0,3,3) << //d[vel]/d[a]
         I*dt; 
-    Fu->block(3,3,3,3) << //d[vel]/d[omega]
+    Fu.block(3,3,3,3) << //d[vel]/d[omega]
         -dt*SomegaDotVel;
 
-    Fu->block(6,3,4,3) <<
+    Fu.block(6,3,4,3) <<
         -qx*dt*0.5, -qy*dt*0.5, -qz*dt*0.5,
          qw*dt*0.5, -qz*dt*0.5,  qy*dt*0.5,
          qz*dt*0.5,  qw*dt*0.5, -qx*dt*0.5,
-        -qy*dt*0.5,  qx*dt*0.5,  qw*dt*0.5;    
+        -qy*dt*0.5,  qx*dt*0.5,  qw*dt*0.5;   
+    return Fu;
 }
 
-void DroneModel::computeGbody(Eigen::Vector3d* g) const
+Eigen::Vector3d DroneModel::computeGbody() const
 {
     double qw = x(6);
     double qx = x(7);
@@ -272,24 +262,28 @@ void DroneModel::computeGbody(Eigen::Vector3d* g) const
     // squares
     double qxs = qx*qx;
     double qys = qy*qy;
-    *g << 
+    Eigen::Vector3d g;
+    g << 
         2*(qx*qz+qw*qy) * (-GRAVITY),
         2*(qy*qz-qw*qx) * (-GRAVITY),
         1-2*qxs-2*qys   * (-GRAVITY);
+    return g;
 }
 
-void DroneModel::computeSomegaQuaternion(Eigen::MatrixXd* Somega) const
+Eigen::Matrix4d DroneModel::computeSomegaQuaternion() const
 {
-    *Somega << 
+    Eigen::Matrix4d Somega;
+    Somega << 
         0   ,-u(3),-u(4),-u(5),
         u(3), 0   , u(5),-u(4),
         u(4),-u(5), 0   , u(3),
         u(5), u(4),-u(3), 0;
+    return Somega;
 }
 
-void DroneModel::computeSomegaEuler(Eigen::Matrix3d* Somega) const
+Eigen::Matrix3d DroneModel::computeSomegaEuler() const
 {
-    computeSkewSymmetric(u.segment(3,3), Somega);
+    return computeSkewSymmetric(u.segment(3,3));
 }
 
 //*******************************************************************
@@ -307,7 +301,7 @@ KinematicTrackedVehicleModel::KinematicTrackedVehicleModel(const Eigen::VectorXd
     this->B = params.at("distance_between_tracks");
 }
 
-void KinematicTrackedVehicleModel::compute_fu(const Eigen::VectorXd& u, Eigen::VectorXd* fu) const 
+Eigen::VectorXd KinematicTrackedVehicleModel::compute_fu(const Eigen::VectorXd& u) const 
 {
     double i_l = x(3);
     double i_r = x(4);
@@ -316,15 +310,21 @@ void KinematicTrackedVehicleModel::compute_fu(const Eigen::VectorXd& u, Eigen::V
     double theta = x(2);
     double v = 0.5 * r * (omega_l*(1 - i_l) + omega_r*(1 - i_r));
     double omega = r * (omega_l*(1 - i_l) - omega_r*(1 - i_r)) / B;
-    (*fu) << v*cos(theta), v*sin(theta), omega;
+    Eigen::VectorXd fu(getStateSize());
+    fu << v*cos(theta), v*sin(theta), omega;
+    return fu;
 }
 
-void KinematicTrackedVehicleModel::computeJacobian_Fx(Eigen::MatrixXd* Fx) const 
+Eigen::MatrixXd KinematicTrackedVehicleModel::computeJacobian_Fx() const 
 {
-    Fx->setZero();
+    Eigen::MatrixXd Fx(getStateSize(), getStateSize());
+    Fx.setZero();
+    return Fx;
 }
 
-void KinematicTrackedVehicleModel::computeJacobian_Fu(Eigen::MatrixXd* Fu) const 
+Eigen::MatrixXd KinematicTrackedVehicleModel::computeJacobian_Fu() const 
 {
-    Fu->setZero();
+    Eigen::MatrixXd Fu(getStateSize(), getControlInputSize());
+    Fu.setZero();
+    return Fu;
 }
