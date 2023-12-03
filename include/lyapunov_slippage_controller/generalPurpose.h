@@ -16,6 +16,12 @@ struct Measurement1D {
     double time;
 };
 
+enum Verbosity {
+    ABSENT,
+    MINIMAL,
+    DEBUG,
+};
+
 void computeQuaternion(double roll, double pitch, double yaw, std::vector<double> *q);
 void computeRFdotVecDerivative(const Eigen::VectorXd& q, const Eigen::Vector3d& vec, Eigen::MatrixXd* Dq_out);
 void computeSkewSymmetric(const Eigen::Vector3d& vec, Eigen::Matrix3d* Skw);
