@@ -37,6 +37,10 @@ private:
     Eigen::Vector3d pose;
     double t_start;
 	double t_pose_init;
+	double tau_derivative_filter;
+	double alpha_dot_prev;
+	double alpha_dot;
+
 	Measurement1D alpha_prev_1; // store alpha value at time dt*(k-2)
 	Measurement1D alpha_prev_2; // store alpha value at time dt*(k-1)
 	double i_L_prev; // store i_L value at time dt*(k-1)
@@ -111,8 +115,7 @@ private:
 		double dt = t_now - t_start;
 
 		// compute an estimation of the longitudinal and lateral slips
-		// Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
-		Eigen::Vector3d pose_offset(0.0, 0.0, 0.0);
+		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
 		Eigen::Vector3d pose_bar = pose + pose_offset; 
 	
 		Ctrl->setCurrentTime(dt);
@@ -139,8 +142,8 @@ private:
 
 		if(LONG_SLIP_ENABLED)
 		{
-			double motor_vel_comp_L /= (1-this->i_L_prev);
-			double motor_vel_comp_R /= (1-this->i_R_prev);
+			motor_vel_comp_L /= (1-this->i_L_prev);
+			motor_vel_comp_R /= (1-this->i_R_prev);
 		}
 
 		std::cout<<"wheels control input: " << motor_vel_comp_L << ", " << motor_vel_comp_R << std::endl;
@@ -334,13 +337,12 @@ private:
 
 	double computeAlphaDot() const
 	{
-		double dalpha = this->alpha_prev_1.data - this->alpha_prev_2.data;
 		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
 		if(dt == 0.0)
 			throw SINGULARITY_DT_ALPHA_DOT;
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
-		return dalpha / dt;
+		return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
 	}
 
 	void updateSlipsPrev(const Eigen::Vector2d& u)
@@ -351,22 +353,21 @@ private:
 		this->alpha_prev_2.data = this->alpha_prev_1.data;
 		this->alpha_prev_1.time = getCurrentTime();
 		this->alpha_prev_1.data = computeSideSlipAngle(u);
-		std::cout << "i_L_prev" << i_L_prev << "i_R_prev " << i_R_prev << std::endl;
-		std::cout << "alpha_prev_2.data" << this->alpha_prev_2.data << "alpha_prev_2.time " << this->alpha_prev_2.time << std::endl;
-		std::cout << "alpha_prev_1.data" << this->alpha_prev_1.data << "alpha_prev_1.time " << this->alpha_prev_1.time << std::endl;
+		this->alpha_dot_prev = this->alpha_dot;
+		std::cout << "i_L_prev " << i_L_prev << " i_R_prev " << i_R_prev << std::endl;
+		std::cout << "alpha_prev_2.data " << this->alpha_prev_2.data << " alpha_prev_2.time " << this->alpha_prev_2.time << std::endl;
+		std::cout << "alpha_prev_1.data " << this->alpha_prev_1.data << " alpha_prev_1.time " << this->alpha_prev_1.time << std::endl;
 
 	}
 
-	void convertskidSteering(const Eigen::Vector2d& u_bar, Eigen::Vector2d* u_out) const
+	void convertskidSteering(const Eigen::Vector2d& u_bar, Eigen::Vector2d* u_out)
 	{
 		/* Convert control inputs to compensate for a skid-steering 
 		*  vehicle
 		*/
-		// double alpha_dot = computeAlphaDot();
-		double alpha_dot = 0.0;
-		double alpha = this->alpha_prev_1.data;
+		this->alpha_dot = computeAlphaDot();
 
-		double v_conv = u_bar(0) * cos(alpha);
+		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
 		double omega_conv = u_bar(1) + alpha_dot;
 		*u_out << v_conv, omega_conv;
 	}
@@ -424,11 +425,14 @@ public:
 		alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
+		tau_derivative_filter = 0.01; // [s]
+		alpha_dot_prev = 0.0;
+		alpha_dot = 0.0;
 
 		alpha_prev_1.data = 0.0; // store alpha value at time dt*(k-2)
 		alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
 		alpha_prev_2.data = 0.0; // store alpha value at time dt*(k-1)
-		alpha_prev_2.time = 0.0; // store alpha value at time dt*(k-1)
+		alpha_prev_2.time = pub_dt / 1000.0; // store alpha value at time dt*(k-1)
 		i_L_prev = 0.0; // store i_L value at time dt*(k-1)
 		i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 		
