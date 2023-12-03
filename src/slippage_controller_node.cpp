@@ -136,7 +136,6 @@ private:
 
 		std::cout<<"u_bar control inputs: " << u_bar(0) << ", " << u_bar(1) << std::endl;
 		// conversion block u = f(alpha, alpha_dot, u_bar) 
-		this->alpha_dot	= computeAlphaDot();
 		Eigen::Vector2d u = convertskidSteering(u_bar);
 		std::cout<<"u control inputs: " << u(0) << ", " << u(1) << std::endl;
 		std::cout<< std::endl;
@@ -249,10 +248,14 @@ private:
 		try{
 			if(COPY_WHOLE_TRAJ)
 			{
+				if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
+					std::cout << "Trajectory: copying the whole inputs and trajectory" << std::endl;
 				this->addTrajectory(v_vec, omega_vec, x_vec, y_vec, theta_vec);
 			}
 			else
 			{
+				if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
+					std::cout << "Trajectory: copying only control inputs" << std::endl;
 				this->addControlsTrajectory(v_vec, omega_vec);
 			}
 		}
@@ -365,6 +368,12 @@ private:
 		return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
 	}
 
+	/*
+	Updates all variables related to slippage.
+	IMPORTANT: order matters!
+	Note that all estimates are computed using the controller output and are used the next cycle, thus
+	the have a delay of one step
+	*/
 	void updateSlipsPrev(const Eigen::Vector2d& u)
 	{
 		this->i_L_prev = computeLeftWheelLongSlip(u);
@@ -374,10 +383,16 @@ private:
 		this->alpha_prev_1.time = getCurrentTime();
 		this->alpha_prev_1.data = computeSideSlipAngle(u);
 		this->alpha_dot_prev = this->alpha_dot;
-		std::cout << "i_L_prev " << i_L_prev << " i_R_prev " << i_R_prev << std::endl;
-		std::cout << "alpha_prev_2.data " << this->alpha_prev_2.data << " alpha_prev_2.time " << this->alpha_prev_2.time << std::endl;
-		std::cout << "alpha_prev_1.data " << this->alpha_prev_1.data << " alpha_prev_1.time " << this->alpha_prev_1.time << std::endl;
+		this->alpha_dot	= computeAlphaDot();
 
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "i_L k-1=" << i_L_prev << " i_R k-1=" << i_R_prev << std::endl;
+			std::cout << "alpha k-1=" << this->alpha_prev_1.data << " [rad] taken at time=" << this->alpha_prev_1.time <<" [s]" << std::endl;
+			std::cout << "alpha k-2=" << this->alpha_prev_2.data << " [rad] taken at time=" << this->alpha_prev_2.time <<" [s]" << std::endl;
+			std::cout << "alpha dot k-1=" << this->alpha_dot << " [rad/s]"<< std::endl;
+			std::cout << "alpha dot k-2=" << this->alpha_dot_prev << " [rad/s]"<< std::endl;
+		}
 	}
 
 	Eigen::Vector2d convertskidSteering(const Eigen::Vector2d& u_bar)
@@ -388,7 +403,11 @@ private:
 		
 		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
 		double omega_conv = u_bar(1) + this->alpha_dot;
-
+		if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
+		{
+			std::cout << "v_conv=" << v_conv << std::endl;
+			std::cout << "omega_conv=" << omega_conv << std::endl;
+		}
 		Eigen::Vector2d u_out;
 		u_out << v_conv, omega_conv;
 		return u_out;
@@ -550,6 +569,8 @@ public:
 		}
 	}
 };
+
+// MAIN /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char ** argv)
 {
