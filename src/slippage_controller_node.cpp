@@ -23,6 +23,9 @@
 #define LONG_SLIP_ENABLED false
 
 using namespace std::chrono_literals;
+// specify the level of prints during the execution of the code
+const Verbosity code_verbosity_sub = ABSENT; 
+const Verbosity code_verbosity_pub = ABSENT; 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
@@ -63,13 +66,10 @@ private:
 		{
 			return;
 		}
-		sensor_msgs::msg::JointState msg_cmd;
-		geometry_msgs::msg::Vector3Stamped msg_err;
-
-		trackTrajectory(&msg_cmd);
-		getTrackingErrorMsg(&msg_err);
-		pub_cmd->publish(msg_cmd);
-		pub_trk_error->publish(msg_err);
+		sensor_msgs::msg::JointState::SharedPtr msg_cmd = trackTrajectory();
+		geometry_msgs::msg::Vector3Stamped::SharedPtr msg_err = getTrackingErrorMsg();
+		pub_cmd->publish(*msg_cmd);
+		pub_trk_error->publish(*msg_err);
     }
 
     void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
@@ -88,30 +88,39 @@ private:
 		// Transform the coordinate system into the classic x,y on plane,z upwards
 		double x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
 		double y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
+		
 		//double z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
 
 		double roll, pitch, yaw;
 		R.getEulerYPR(yaw, pitch, roll);
+		yaw = angleWithinPI(yaw);
 
+		if(code_verbosity_sub == DEBUG)
+		{
+			std::cout << "Pose callback: x=" << x << " y=" << y << " yaw=" << yaw << std::endl;
+		}
 		if(this->enable_pose_init)
 		{
+			if(code_verbosity_sub == DEBUG)
+			{
+				std::cout << "Performing pose initiation" << yaw << std::endl;
+			}
 			try
-				{initProcedure(x,y,angleWithinPI(yaw));}
+				{initProcedure(x,y,yaw);}
 			catch(Error e)
 				{printErrorCode(e);}
 		}
 		else
 		{
-			this->pose << x,y,angleWithinPI(yaw);
+			this->pose << x,y,yaw;
 		}
     }
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the stantdard
 	controller and finally the effects of slippage are compensated by a transformer */
-    void trackTrajectory(sensor_msgs::msg::JointState* msg_out)
+    sensor_msgs::msg::JointState::SharedPtr trackTrajectory()
     {
-		Eigen::Vector2d u;
 		Eigen::Vector2d u_bar;
 		double t_now = getCurrentTime();
 		double dt = t_now - t_start;
@@ -127,7 +136,8 @@ private:
 
 		std::cout<<"u_bar control inputs: " << u_bar(0) << ", " << u_bar(1) << std::endl;
 		// conversion block u = f(alpha, alpha_dot, u_bar) 
-		convertskidSteering(u_bar, &u);
+		this->alpha_dot	= computeAlphaDot();
+		Eigen::Vector2d u = convertskidSteering(u_bar);
 		std::cout<<"u control inputs: " << u(0) << ", " << u(1) << std::endl;
 		std::cout<< std::endl;
 
@@ -149,28 +159,32 @@ private:
 		}
 
 		std::cout<<"wheels control input: " << motor_vel_comp_L << ", " << motor_vel_comp_R << std::endl;
-		msg_out->name = {"left_sprocket", "right_sprocket"};
-		msg_out->velocity = std::vector<double>{
+		// auto msg = sensor_msgs::msg::JointState::Ptr();
+		sensor_msgs::msg::JointState::SharedPtr msg;
+		msg->name = {"left_sprocket", "right_sprocket"};
+		msg->velocity = std::vector<double>{
 			motor_vel_comp_L, 
 			motor_vel_comp_R
 		};
 		// estimate alpha, alpha_dot
 		updateSlipsPrev(u);
-
+		return msg;
     }
 
-	void getTrackingErrorMsg(geometry_msgs::msg::Vector3Stamped* msg)
+
+
+	geometry_msgs::msg::Vector3Stamped::SharedPtr getTrackingErrorMsg()
 	{
 		double e_x = Ctrl->getErrorX();
 		double e_y = Ctrl->getErrorY();
 		double e_th = Ctrl->getErrorTheta();
-
+		geometry_msgs::msg::Vector3Stamped::SharedPtr msg;
 		msg->vector.x = e_x;
 		msg->vector.y = e_y;
 		msg->vector.z = e_th;
-
 		msg->header.stamp = this->get_clock()->now();
 		msg->header.frame_id = "world";
+		return msg;
 	}
 
 	double getCurrentTime()
@@ -224,12 +238,12 @@ private:
 
 	void setupTrajectory()
 	{
-		std::vector<double> v_vec 		= this->get_parameter("v_des_mps").as_double_array();
-		std::vector<double> omega_vec	= this->get_parameter("omega_des_radps").as_double_array();
-		std::vector<double> x_vec		= this->get_parameter("x_des_m").as_double_array();
-		std::vector<double> y_vec		= this->get_parameter("y_des_m").as_double_array();
-		std::vector<double> theta_vec	= this->get_parameter("theta_des_rad").as_double_array();
-		bool COPY_WHOLE_TRAJ  = this->get_parameter("copy_trajectory").as_bool();
+		std::vector<double> v_vec = this->get_parameter("v_des_mps").as_double_array();
+		std::vector<double> omega_vec = this->get_parameter("omega_des_radps").as_double_array();
+		std::vector<double> x_vec = this->get_parameter("x_des_m").as_double_array();
+		std::vector<double> y_vec = this->get_parameter("y_des_m").as_double_array();
+		std::vector<double> theta_vec = this->get_parameter("theta_des_rad").as_double_array();
+		bool COPY_WHOLE_TRAJ = this->get_parameter("copy_trajectory").as_bool();
 		
 		t_start = getCurrentTime();
 		try{
@@ -337,13 +351,15 @@ private:
 		return i_R;
 	}
 
+	/*
+	Compute the derivative of alpha (side slip angle) with a derivative filter implemented using
+	Backward Euler 
+	*/
 	double computeAlphaDot() const
 	{
-		double dalpha = this->alpha_prev_1.data - this->alpha_prev_2.data;
 		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
 		if(dt == 0.0)
 			throw SINGULARITY_DT_ALPHA_DOT;
-			}
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
 		return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
@@ -364,16 +380,18 @@ private:
 
 	}
 
-	void convertskidSteering(const Eigen::Vector2d& u_bar, Eigen::Vector2d* u_out)
+	Eigen::Vector2d convertskidSteering(const Eigen::Vector2d& u_bar)
 	{
 		/* Convert control inputs to compensate for a skid-steering 
 		*  vehicle
 		*/
-		this->alpha_dot = computeAlphaDot();
+		
+		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
+		double omega_conv = u_bar(1) + this->alpha_dot;
 
-		double v_conv = u_bar(0) * cos(alpha);
-		double omega_conv = u_bar(1) + alpha_dot;
-		*u_out << v_conv, omega_conv;
+		Eigen::Vector2d u_out;
+		u_out << v_conv, omega_conv;
+		return u_out;
 	}
 
 
@@ -381,7 +399,6 @@ private:
 public:
     SlippageControllerNode() : CoppeliaSimNode("lyapunov_slippage_controller")
     {
-		double d,r,gear_ratio;
 		declare_parameter("track_distance_m", 0.606);
 		declare_parameter("sprocket_radius_m", 0.0856);
 		declare_parameter("gearbox_ratio", 34.45);
@@ -393,12 +410,11 @@ public:
 		declare_parameter("automatic_pose_init", false);
 		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
 
-		// declare_parameter("verbose_level", 0); // 0:no print 1: only controller
-
 		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_singularity_epsilon", 0.01);
+		declare_parameter("derivative_filter_time_constant_s", 0.01);
 
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
     	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
@@ -409,20 +425,20 @@ public:
 		// true: the desired pose is set by the user as well as the desired control inputs
 		// false: only the desired control inputs are specified by user, the pose is obtained via integration of
 		//		of the unicycle kinematic model
-		declare_parameter("copy_trajectory",     false); 
+		declare_parameter("copy_trajectory", false); 
 		
 		
-		get_parameter("track_distance_m", d);
-		get_parameter("sprocket_radius_m", r);
-		get_parameter("gearbox_ratio", gear_ratio);
+		double r = this->get_parameter("sprocket_radius_m").as_double();
+		double gear_ratio = this->get_parameter("gearbox_ratio").as_double();
+		double d = this->get_parameter("track_distance_m").as_double();
 		long_slip_epsilon = this->get_parameter("long_slip_singularity_epsilon").as_double();
-		double Kp 		= this->get_parameter("Kp").as_double();
-		double Ktheta 	= this->get_parameter("Ktheta").as_double();
-		double dt 		= this->get_parameter("dt").as_double();
-		int pub_dt 		= this->get_parameter("pub_dt_ms").as_int();
-		this->enable_pose_init  = this->get_parameter("automatic_pose_init").as_bool();
+		double Kp = this->get_parameter("Kp").as_double();
+		double Ktheta = this->get_parameter("Ktheta").as_double();
+		double dt = this->get_parameter("dt").as_double();
+		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
+		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
-		std::vector<double> pose_init   = this->get_parameter("pose_init_m_m_rad").as_double_array();
+		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
 		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
 		i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
