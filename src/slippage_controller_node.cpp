@@ -21,6 +21,8 @@
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
 #define LONG_SLIP_ENABLED false
+#define MAX_LONG_SLIP 1
+#define MIN_LONG_SLIP -10
 
 using namespace std::chrono_literals;
 // specify the level of prints during the execution of the code ABSENT, DEBUG
@@ -297,7 +299,7 @@ private:
 	}
 	double computeLeftWheelLongSlip(const Eigen::Vector2d& u) const
 	{
-		double i_L, a0, a1;
+		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
 		if(code_verbosity_pub == DEBUG)
 		{
@@ -317,28 +319,12 @@ private:
 		{
 			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
 		}
-		if(abs(a1 + R) < this->long_slip_epsilon)
-		{
-			// close to singularity
-			if(code_verbosity_pub == DEBUG)
-			{
-				std::cout << "Long Slip: SINGULARITY" << std::endl;
-			}
-			if(abs(a1 + R) * a0 > 0.0)
-				i_L =  1.0;
-			else
-				i_L = -10.0;
-		}
-		else
-		{
-			i_L = a0 / (a1 + R);
-		}
-		return i_L;
+		return computeLongSlip(R, a0, a1);
 	}
 
 	double computeRightWheelLongSlip(const Eigen::Vector2d& u) const
 	{
-		double i_R, a0, a1;
+		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
 		if(code_verbosity_pub == DEBUG)
 		{
@@ -358,6 +344,11 @@ private:
 		{
 			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
 		}
+		return computeLongSlip(R, a0, a1);
+	}
+
+	double computeLongSlip(double R, double a0, double a1) const
+	{
 		if(abs(a1 + R) < this->long_slip_epsilon)
 		{
 			// close to singularity
@@ -365,16 +356,28 @@ private:
 			{
 				std::cout << "Long Slip: SINGULARITY" << std::endl;
 			}
-			if(abs(a1 + R) * a0 > 0.0)
-				i_R =  1.0;
+			if(abs(a1 + R) * a0 >= 0.0)
+			{
+				slip = MAX_LONG_SLIP;
+			}
 			else
-				i_R = -10.0;
+			{
+				slip = MIN_LONG_SLIP;
+			}
 		}
 		else
 		{
-			i_R = a0 / (a1 + R);
+			slip = a0 / (a1 + R);
+			if(slip > MAX_LONG_SLIP)
+			{
+				slip = MAX_LONG_SLIP;
+			}
+			elseif(slip < MIN_LONG_SLIP)
+			{
+				slip = MIN_LONG_SLIP;
+			}
 		}
-		return i_R;
+		return slip;
 	}
 
 	/*
