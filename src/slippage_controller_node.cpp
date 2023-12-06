@@ -23,9 +23,9 @@
 #define LONG_SLIP_ENABLED false
 
 using namespace std::chrono_literals;
-// specify the level of prints during the execution of the code
+// specify the level of prints during the execution of the code ABSENT, DEBUG
 const Verbosity code_verbosity_sub = ABSENT; 
-const Verbosity code_verbosity_pub = ABSENT; 
+const Verbosity code_verbosity_pub = DEBUG; 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
@@ -66,10 +66,21 @@ private:
 		{
 			return;
 		}
-		sensor_msgs::msg::JointState::SharedPtr msg_cmd = trackTrajectory();
-		geometry_msgs::msg::Vector3Stamped::SharedPtr msg_err = getTrackingErrorMsg();
-		pub_cmd->publish(*msg_cmd);
-		pub_trk_error->publish(*msg_err);
+		Eigen::Vector2d cmd = trackTrajectory();
+		sensor_msgs::msg::JointState msg_cmd;
+		msg_cmd.name = {"left_sprocket", "right_sprocket"};
+		msg_cmd.velocity = {cmd(0), cmd(1)};
+		std::cout<<"Filled Joint State msg " << std::endl;
+
+		Eigen::Vector3d tracking_error= getTrackingErrorMsg();
+		geometry_msgs::msg::Vector3Stamped msg_err;
+		msg_err.vector.x = tracking_error(0);
+		msg_err.vector.y = tracking_error(1);
+		msg_err.vector.z = tracking_error(2);
+		msg_err.header.stamp = this->get_clock()->now();
+		msg_err.header.frame_id = "world";
+		pub_cmd->publish(msg_cmd);
+		pub_trk_error->publish(msg_err);
     }
 
     void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
@@ -119,7 +130,7 @@ private:
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the stantdard
 	controller and finally the effects of slippage are compensated by a transformer */
-    sensor_msgs::msg::JointState::SharedPtr trackTrajectory()
+    Eigen::Vector2d trackTrajectory()
     {
 		double t_now = getCurrentTime();
 		double dt = t_now - t_start;
@@ -157,32 +168,23 @@ private:
 		}
 
 		std::cout<<"wheels control input: " << motor_vel_comp_L << ", " << motor_vel_comp_R << std::endl;
-		// auto msg = sensor_msgs::msg::JointState::Ptr();
-		sensor_msgs::msg::JointState::SharedPtr msg;
-		msg->name = {"left_sprocket", "right_sprocket"};
-		msg->velocity = std::vector<double>{
-			motor_vel_comp_L, 
-			motor_vel_comp_R
-		};
 		// estimate alpha, alpha_dot
 		updateSlipsPrev(u);
-		return msg;
+		Eigen::Vector2d jointsVel;
+		jointsVel << motor_vel_comp_L, motor_vel_comp_R;
+		return jointsVel;
     }
 
 
 
-	geometry_msgs::msg::Vector3Stamped::SharedPtr getTrackingErrorMsg()
+	Eigen::Vector3d getTrackingErrorMsg()
 	{
 		double e_x = Ctrl->getErrorX();
 		double e_y = Ctrl->getErrorY();
 		double e_th = Ctrl->getErrorTheta();
-		geometry_msgs::msg::Vector3Stamped::SharedPtr msg;
-		msg->vector.x = e_x;
-		msg->vector.y = e_y;
-		msg->vector.z = e_th;
-		msg->header.stamp = this->get_clock()->now();
-		msg->header.frame_id = "world";
-		return msg;
+		Eigen::Vector3d e;
+		e << e_x, e_y, e_th;
+		return e;
 	}
 
 	double getCurrentTime()
@@ -297,7 +299,10 @@ private:
 	{
 		double i_L, a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
-
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "R=" << R << std::endl;
+		}
 		if(R >= 0.0) // turning left, left wheel is inner
 		{
 			a0 = this->i_inner_coeff.at(0);
@@ -308,9 +313,17 @@ private:
 			a0 = this->i_outer_coeff.at(0);
 			a1 = this->i_outer_coeff.at(1);
 		}
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
+		}
 		if(abs(a1 + R) < this->long_slip_epsilon)
 		{
 			// close to singularity
+			if(code_verbosity_pub == DEBUG)
+			{
+				std::cout << "Long Slip: SINGULARITY" << std::endl;
+			}
 			if(abs(a1 + R) * a0 > 0.0)
 				i_L =  1.0;
 			else
@@ -327,7 +340,10 @@ private:
 	{
 		double i_R, a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
-
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "R=" << R << std::endl;
+		}
 		if(R < 0.0) // turning right, right wheel is inner
 		{
 			a0 = this->i_inner_coeff.at(0);
@@ -338,9 +354,17 @@ private:
 			a0 = this->i_outer_coeff.at(0);
 			a1 = this->i_outer_coeff.at(1);
 		}
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
+		}
 		if(abs(a1 + R) < this->long_slip_epsilon)
 		{
 			// close to singularity
+			if(code_verbosity_pub == DEBUG)
+			{
+				std::cout << "Long Slip: SINGULARITY" << std::endl;
+			}
 			if(abs(a1 + R) * a0 > 0.0)
 				i_R =  1.0;
 			else
@@ -377,18 +401,26 @@ private:
 	{
 		this->i_L_prev = computeLeftWheelLongSlip(u);
 		this->i_R_prev = computeRightWheelLongSlip(u);
-		this->alpha_prev_2.time = this->alpha_prev_1.time;
-		this->alpha_prev_2.data = this->alpha_prev_1.data;
-		this->alpha_prev_1.time = getCurrentTime();
-		this->alpha_prev_1.data = computeSideSlipAngle(u);
-		this->alpha_dot_prev = this->alpha_dot;
-		this->alpha_dot	= computeAlphaDot();
-
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "i_L k-1=" << i_L_prev << " i_R k-1=" << i_R_prev << std::endl;
-			std::cout << "alpha k-1=" << this->alpha_prev_1.data << " [rad] taken at time=" << this->alpha_prev_1.time <<" [s]" << std::endl;
+		}
+		this->alpha_prev_2.time = this->alpha_prev_1.time;
+		this->alpha_prev_2.data = this->alpha_prev_1.data;
+		if(code_verbosity_pub == DEBUG)
+		{
 			std::cout << "alpha k-2=" << this->alpha_prev_2.data << " [rad] taken at time=" << this->alpha_prev_2.time <<" [s]" << std::endl;
+		}
+		this->alpha_prev_1.time = getCurrentTime();
+		this->alpha_prev_1.data = computeSideSlipAngle(u);
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "alpha k-1=" << this->alpha_prev_1.data << " [rad] taken at time=" << this->alpha_prev_1.time <<" [s]" << std::endl;
+		}
+		this->alpha_dot_prev = this->alpha_dot;
+		this->alpha_dot	= computeAlphaDot();
+		if(code_verbosity_pub == DEBUG)
+		{
 			std::cout << "alpha dot k-1=" << this->alpha_dot << " [rad/s]"<< std::endl;
 			std::cout << "alpha dot k-2=" << this->alpha_dot_prev << " [rad/s]"<< std::endl;
 		}
