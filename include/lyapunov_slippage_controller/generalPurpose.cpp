@@ -161,6 +161,8 @@ double angleWithin2PI(double angle)
 
 double computeTurningRadius(double v, double omega)
 {
+    std::cout << "calculate radius [v,omega] = " << v << ", " << omega << std::endl;
+
     if(omega == 0.0)
         return 0.0;
     else

@@ -60,6 +60,7 @@ def generate_launch_description():
             {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
             {'long_slip_outer_coefficients': [0.0390, 0.25]},
             {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
+            {'consider_slippage', True},
         ]
     )
     robot_node = Node(

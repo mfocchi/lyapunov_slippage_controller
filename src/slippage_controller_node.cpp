@@ -20,7 +20,6 @@
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
-#define LONG_SLIP_ENABLED false
 #define MAX_LONG_SLIP 1
 #define MIN_LONG_SLIP -10
 
@@ -59,6 +58,7 @@ private:
 	double long_slip_epsilon;
 
 	bool enable_pose_init;
+	bool enable_slippage;
 	double n_samples_pose_init;
 	
 
@@ -68,7 +68,7 @@ private:
 		{
 			return;
 		}
-		Eigen::Vector2d cmd = trackTrajectory();
+		Eigen::Vector2d cmd = (enable_slippage) ? trackTrajectorySlippage() : trackTrajectoryClassic();
 		sensor_msgs::msg::JointState msg_cmd;
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = {cmd(0), cmd(1)};
@@ -130,54 +130,65 @@ private:
     }
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
-	to extract the desired velocities and poses, then it computes the control with the stantdard
+	to extract the desired velocities and poses, then it computes the control with the standard
 	controller and finally the effects of slippage are compensated by a transformer */
-    Eigen::Vector2d trackTrajectory()
+    Eigen::Vector2d trackTrajectorySlippage()
     {
-		double t_now = getCurrentTime();
-		double dt = t_now - t_start;
-
 		// compute an estimation of the longitudinal and lateral slips
 		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
 		Eigen::Vector3d pose_bar = pose + pose_offset; 
 	
-		Ctrl->setCurrentTime(dt);
+		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 
 		Eigen::Vector2d u_bar = Ctrl->run(pose_bar);
-		std::cout<< std::endl;
+		if(code_verbosity_pub == DEBUG)
+			std::cout<<"u compensated control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
 
-		std::cout<<"u_bar control inputs: " << u_bar(0) << ", " << u_bar(1) << std::endl;
-		// conversion block u = f(alpha, alpha_dot, u_bar) 
 		Eigen::Vector2d u = convertskidSteering(u_bar);
-		std::cout<<"u control inputs: " << u(0) << ", " << u(1) << std::endl;
-		std::cout<< std::endl;
+		if(code_verbosity_pub == DEBUG)
+			std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 
-		double v = u(0);
-		double omega = u(1);
 		// conversion block from unicycle to differential drive
-		Model->setUnicycleSpeed(v, omega);
+		Model->setUnicycleSpeed(u(0), u(1));
 		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
 		double motor_vel_R = Model->getRightMotorRotationalSpeed();// mettere Wheel
 		
 		// compensate the longitudinal slip
-		double motor_vel_comp_L = motor_vel_L;
-		double motor_vel_comp_R = motor_vel_R;
+		double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
+		double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
 
-		if(LONG_SLIP_ENABLED)
-		{
-			motor_vel_comp_L /= (1-this->i_L_prev);
-			motor_vel_comp_R /= (1-this->i_R_prev);
-		}
-
-		std::cout<<"wheels control input: " << motor_vel_comp_L << ", " << motor_vel_comp_R << std::endl;
 		// estimate alpha, alpha_dot
-		updateSlipsPrev(u);
-		Eigen::Vector2d jointsVel;
-		jointsVel << motor_vel_comp_L, motor_vel_comp_R;
-		return jointsVel;
+		u(0) = 0.1; // current modification for testing, u should not be bypassed for slips update
+		updateSlipVariables(u);
+		Eigen::Vector2d wheels_vel;
+		wheels_vel << motor_vel_comp_L, motor_vel_comp_R;
+		if(code_verbosity_pub == DEBUG)
+			std::cout<<"Wheels control input [rad/s]: LEFT " << wheels_vel(0) << " RIGHT " << wheels_vel(1) << std::endl;
+
+		return wheels_vel;
     }
 
+	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
+	to extract the desired velocities and poses, then it computes the control with the standard
+	controller*/
+    Eigen::Vector2d trackTrajectoryClassic()
+    {
+		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 
+		Eigen::Vector2d u = Ctrl->run(this->pose);
+		if(code_verbosity_pub == DEBUG)
+			std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
+
+		// conversion block from unicycle to differential drive
+		Model->setUnicycleSpeed(u(0), u(1));
+
+		Eigen::Vector2d wheels_vel;
+		wheels_vel << Model->getLeftWheelRotationalSpeed(), Model->getRightWheelRotationalSpeed();
+		if(code_verbosity_pub == DEBUG)
+			std::cout<<"Wheels control input [rad/s]: LEFT " << wheels_vel(0) << " RIGHT " << wheels_vel(1) << std::endl;
+
+		return wheels_vel;
+    }
 
 	Eigen::Vector3d getTrackingErrorMsg()
 	{
@@ -283,10 +294,11 @@ private:
 		a0 = this->alpha_coeff.at(0);
 		a1 = this->alpha_coeff.at(1);
 		a2 = this->alpha_coeff.at(2);
+        // {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
 
 		// model side slip as a plyinomial in the curvature
-		double alpha = a0 + a1*pow((a2 + 1/R), 2);
-
+		// double alpha = a0 + a1*pow((a2 + 1/R), 2);
+		double alpha = -0.0005937 * 1/(R*R);
 		if(R > 0.0) // turning left
 		{
 			return alpha;
@@ -349,6 +361,7 @@ private:
 
 	double computeLongSlip(double R, double a0, double a1) const
 	{
+		double slip;
 		if(abs(a1 + R) < this->long_slip_epsilon)
 		{
 			// close to singularity
@@ -372,7 +385,7 @@ private:
 			{
 				slip = MAX_LONG_SLIP;
 			}
-			elseif(slip < MIN_LONG_SLIP)
+			else if(slip < MIN_LONG_SLIP)
 			{
 				slip = MIN_LONG_SLIP;
 			}
@@ -384,14 +397,21 @@ private:
 	Compute the derivative of alpha (side slip angle) with a derivative filter implemented using
 	Backward Euler 
 	*/
-	double computeAlphaDot() const
+	double computeSideSlipDerivative() const
 	{
-		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
+		// double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
+		double dt = 0.01;
 		if(dt == 0.0)
 			throw SINGULARITY_DT_ALPHA_DOT;
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
-		return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
+		// return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
+		static double alpha_dot_f = 0.;
+		double beta = 0.01;
+		double alpha_dot =  (alpha_prev_1.data - alpha_prev_2.data) / dt;
+		alpha_dot_f = (1-beta)*alpha_dot_f + beta * alpha_dot;
+		return alpha_dot_f;
+
 	}
 
 	/*
@@ -400,7 +420,7 @@ private:
 	Note that all estimates are computed using the controller output and are used the next cycle, thus
 	the have a delay of one step
 	*/
-	void updateSlipsPrev(const Eigen::Vector2d& u)
+	void updateSlipVariables(const Eigen::Vector2d& u)
 	{
 		this->i_L_prev = computeLeftWheelLongSlip(u);
 		this->i_R_prev = computeRightWheelLongSlip(u);
@@ -414,14 +434,14 @@ private:
 		{
 			std::cout << "alpha k-2=" << this->alpha_prev_2.data << " [rad] taken at time=" << this->alpha_prev_2.time <<" [s]" << std::endl;
 		}
-		this->alpha_prev_1.time = getCurrentTime();
+		this->alpha_prev_1.time = getCurrentTime() - t_start;
 		this->alpha_prev_1.data = computeSideSlipAngle(u);
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "alpha k-1=" << this->alpha_prev_1.data << " [rad] taken at time=" << this->alpha_prev_1.time <<" [s]" << std::endl;
 		}
 		this->alpha_dot_prev = this->alpha_dot;
-		this->alpha_dot	= computeAlphaDot();
+		this->alpha_dot	= computeSideSlipDerivative();
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "alpha dot k-1=" << this->alpha_dot << " [rad/s]"<< std::endl;
@@ -434,17 +454,32 @@ private:
 		/* Convert control inputs to compensate for a skid-steering 
 		*  vehicle
 		*/
-		
 		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
-		double omega_conv = u_bar(1) + this->alpha_dot;
-		if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
-		{
-			std::cout << "v_conv=" << v_conv << std::endl;
-			std::cout << "omega_conv=" << omega_conv << std::endl;
-		}
+		double omega_conv = u_bar(1) - this->alpha_dot;
 		Eigen::Vector2d u_out;
 		u_out << v_conv, omega_conv;
 		return u_out;
+	}
+
+	void initSlipVariables()
+	{
+		if(this->enable_slippage == false)
+		{
+			return;
+		}
+		Eigen::Vector2d u0 = Ctrl->getControlInputDesiredOnTime(0.0);
+		int dt = this->get_parameter("pub_dt_ms").as_int();
+	
+		this->alpha_dot_prev = 0.0;
+		this->alpha_dot = 0.0;
+		// init side slip with expected value from desired velocities
+		double alpha = computeSideSlipAngle(u0);
+		this->alpha_prev_1.data = alpha; // store alpha value at time dt*(k-2)
+		this->alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
+		this->alpha_prev_2.data = alpha; // store alpha value at time dt*(k-1)
+		this->alpha_prev_2.time = -dt / 1000.0; // store alpha value at time dt*(k-1)
+		this->i_L_prev = 0.0; // store i_L value at time dt*(k-1)
+		this->i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 	}
 
 
@@ -479,18 +514,20 @@ public:
 		// false: only the desired control inputs are specified by user, the pose is obtained via integration of
 		//		of the unicycle kinematic model
 		declare_parameter("copy_trajectory", false); 
-		
-		
+		// set it to false for classic differential drive model, true for skid-steering control (requires slip models)
+		declare_parameter("consider_slippage", true); 
+				
 		double r = this->get_parameter("sprocket_radius_m").as_double();
 		double gear_ratio = this->get_parameter("gearbox_ratio").as_double();
 		double d = this->get_parameter("track_distance_m").as_double();
-		long_slip_epsilon = this->get_parameter("long_slip_singularity_epsilon").as_double();
 		double Kp = this->get_parameter("Kp").as_double();
 		double Ktheta = this->get_parameter("Ktheta").as_double();
 		double dt = this->get_parameter("dt").as_double();
 		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
 		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
+		this->enable_slippage = this->get_parameter("consider_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
+		this->long_slip_epsilon = this->get_parameter("long_slip_singularity_epsilon").as_double();
 		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
 		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
@@ -499,15 +536,6 @@ public:
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
 		tau_derivative_filter = 0.01; // [s]
-		alpha_dot_prev = 0.0;
-		alpha_dot = 0.0;
-
-		alpha_prev_1.data = pub_dt / 1000.0; // store alpha value at time dt*(k-2)
-		alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
-		alpha_prev_2.data = 0.0; // store alpha value at time dt*(k-1)
-		alpha_prev_2.time = pub_dt / 1000.0; // store alpha value at time dt*(k-1)
-		i_L_prev = 0.0; // store i_L value at time dt*(k-1)
-		i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 		
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
@@ -523,7 +551,7 @@ public:
 			Ctrl->setStateOffset(pose_init.at(0), pose_init.at(1), pose_init.at(2));
 			setupTrajectory();
 		}
-		
+		initSlipVariables();
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
 		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
@@ -580,7 +608,7 @@ public:
 		RCLCPP_INFO(this->get_logger(), "%s", (Ctrl->stringSetupInfo()).c_str());
 	}
 
-	void initProcedure(double x, double y, double yaw) /* Cannot find a way to use it*/
+	void initProcedure(double x, double y, double yaw) 
 	{	
 		if(getCurrentTime() - t_start > this->t_pose_init)
 		{
