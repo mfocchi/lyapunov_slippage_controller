@@ -22,6 +22,8 @@
 #define QUEUE_DEPTH_OPTITRACK 2
 #define MAX_LONG_SLIP 1
 #define MIN_LONG_SLIP -10
+#define SIDE_SLIP_EPSILON 0.01
+#define LONG_SLIP_EPSILON 0.01
 
 using namespace std::chrono_literals;
 // specify the level of prints during the execution of the code ABSENT, DEBUG
@@ -54,7 +56,6 @@ private:
 	std::vector<double> i_inner_coeff;
 	std::vector<double> i_outer_coeff;
 	std::vector<double> alpha_coeff;
-	double long_slip_epsilon;
 
 	bool enable_pose_init;
 	bool enable_slippage;
@@ -281,7 +282,7 @@ private:
 	double computeSideSlipAngle(const Eigen::Vector2d& u) const
 	{
 		double R = computeTurningRadius(u(0), u(1));
-		if(u(0) == 0.0 || u(1) == 0.0)
+		if(abs(u(0)) <= SIDE_SLIP_EPSILON || abs(u(1)) <= SIDE_SLIP_EPSILON)
 		{
 			/* In this situation the vehicle is going straight
 			*  or turning on the spot. In both cases there is no
@@ -361,7 +362,7 @@ private:
 	double computeLongSlip(double R, double a0, double a1) const
 	{
 		double slip;
-		if(abs(a1 + R) < this->long_slip_epsilon)
+		if(abs(a1 + R) <= LONG_SLIP_EPSILON)
 		{
 			// close to singularity
 			if(code_verbosity_pub == DEBUG)
@@ -522,7 +523,6 @@ public:
 		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
 		this->enable_slippage = this->get_parameter("consider_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
-		this->long_slip_epsilon = this->get_parameter("long_slip_singularity_epsilon").as_double();
 		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
 		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
