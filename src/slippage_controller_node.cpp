@@ -471,10 +471,10 @@ private:
 		this->alpha_dot = 0.0;
 		// init side slip with expected value from desired velocities
 		double alpha = computeSideSlipAngle(u0);
-		this->alpha_prev_1.data = alpha; // store alpha value at time dt*(k-2)
-		this->alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-2)
-		this->alpha_prev_2.data = alpha; // store alpha value at time dt*(k-1)
-		this->alpha_prev_2.time = -dt / 1000.0; // store alpha value at time dt*(k-1)
+		this->alpha_prev_1.data = alpha; // store alpha value at time dt*(k-1)
+		this->alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-1)
+		this->alpha_prev_2.data = alpha; // store alpha value at time dt*(k-2)
+		this->alpha_prev_2.time = -dt / 1000.0; // store alpha value at time dt*(k-2)
 		this->i_L_prev = 0.0; // store i_L value at time dt*(k-1)
 		this->i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 	}
