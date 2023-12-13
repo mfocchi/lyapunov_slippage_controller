@@ -43,7 +43,6 @@ private:
     Eigen::Vector3d pose;
     double t_start;
 	double t_pose_init;
-	double tau_derivative_filter;
 	double alpha_dot_prev;
 	double alpha_dot;
 
@@ -399,19 +398,16 @@ private:
 	*/
 	double computeSideSlipDerivative() const
 	{
-		// double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
-		double dt = 0.01;
+		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
 		if(dt == 0.0)
 			throw SINGULARITY_DT_ALPHA_DOT;
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
-		// return (alpha_dot_prev * tau_derivative_filter + alpha_prev_1.data - alpha_prev_2.data) / (tau_derivative_filter + dt);
 		static double alpha_dot_f = 0.;
 		double beta = 0.01;
 		double alpha_dot =  (alpha_prev_1.data - alpha_prev_2.data) / dt;
 		alpha_dot_f = (1-beta)*alpha_dot_f + beta * alpha_dot;
 		return alpha_dot_f;
-
 	}
 
 	/*
@@ -501,8 +497,7 @@ public:
 		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
-		declare_parameter("long_slip_singularity_epsilon", 0.01);
-		declare_parameter("derivative_filter_time_constant_s", 0.01);
+		declare_parameter("derivative_filter_time_constant_s", 0.01); // for the alpha dot calculation
 
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
     	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
@@ -535,7 +530,6 @@ public:
 		alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
-		tau_derivative_filter = 0.01; // [s]
 		
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
