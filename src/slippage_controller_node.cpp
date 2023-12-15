@@ -300,8 +300,10 @@ private:
         // {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
 
 		// model side slip as a plyinomial in the curvature
-		// double alpha = a0 + a1*pow((a2 + 1/R), 2);
-		double alpha = -0.0005937 * 1/(R*R);
+		double K = 1/R;
+		double alpha = -0.0610487 + (-0.0185)*K +  (-0.0014)*(K*K); // simplified notation
+		// double alpha = a0 + a1*pow((a2 + 1/R), 2); // original
+		// double alpha = -0.0005937 * 1/(R*R);
 		if(R > 0.0) // turning left
 		{
 			return alpha;
