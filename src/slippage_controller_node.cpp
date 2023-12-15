@@ -152,17 +152,19 @@ private:
 		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(u(0), u(1));
 		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
-		double motor_vel_R = Model->getRightMotorRotationalSpeed();// mettere Wheel
+		double motor_vel_R = Model->getRightMotorRotationalSpeed();
 		
 		// compensate the longitudinal slip
 		double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
 		double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
 
 		// estimate alpha, alpha_dot
-		u(0) = 0.1; // current modification for testing, u should not be bypassed for slips update
-		updateSlipVariables(u);
-		Eigen::Vector2d wheels_vel;
-		wheels_vel << motor_vel_comp_L, motor_vel_comp_R;
+		// u(0) = 0.1; // current modification for testing, u should not be bypassed for slips update
+		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);
+		Eigen::Vector2d u_comp(Model->getLinearSpeed(), Model->getAngularSpeed());
+
+		// updateSlipVariables(u_comp); // TESTING: desired control input
+		updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); // TESTING: ref control input
 		
 		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
 		if(code_verbosity_pub == DEBUG)
