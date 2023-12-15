@@ -283,7 +283,6 @@ private:
 
 	double computeSideSlipAngle(const Eigen::Vector2d& u) const
 	{
-		double R = computeTurningRadius(u(0), u(1));
 		if(abs(u(0)) <= SIDE_SLIP_EPSILON || abs(u(1)) <= SIDE_SLIP_EPSILON)
 		{
 			/* In this situation the vehicle is going straight
@@ -292,6 +291,7 @@ private:
 			*/
 			return 0.0;
 		}
+		double R = computeTurningRadius(u(0), u(1));
 		double a0,a1,a2;
 		a0 = this->alpha_coeff.at(0);
 		a1 = this->alpha_coeff.at(1);
@@ -313,6 +313,13 @@ private:
 	}
 	double computeLeftWheelLongSlip(const Eigen::Vector2d& u) const
 	{
+		if(abs(u(1)) <= SIDE_SLIP_EPSILON)
+		{
+			/* In this situation the vehicle is going straight.
+			* there is no longitudinal slip in this case
+			*/
+			return 0.0;
+		}
 		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
 		if(code_verbosity_pub == DEBUG)
@@ -338,6 +345,13 @@ private:
 
 	double computeRightWheelLongSlip(const Eigen::Vector2d& u) const
 	{
+		if(abs(u(1)) <= SIDE_SLIP_EPSILON)
+		{
+			/* In this situation the vehicle is going straight.
+			* there is no longitudinal slip in this case
+			*/
+			return 0.0;
+		}
 		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
 		if(code_verbosity_pub == DEBUG)
