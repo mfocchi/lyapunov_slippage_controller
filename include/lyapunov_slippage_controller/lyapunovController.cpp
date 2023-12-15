@@ -170,14 +170,10 @@ Eigen::Vector3d LyapController::getPoseDesiredOnTime(double t) const
 
 int LyapController::getIndexIntegerBasedOnTime(double t) const
 {
-    int n_max = this->pose_desired.size();
+    int n_max = this->pose_desired.size(); // same size as the control inputs desired
     int index = round(t / RobotModel->getStepTime()); // index relative to the starting pose
-
-    if(index >= n_max)
-    {
-        index = n_max-1;
-    }
-    return index;
+    int index_clipped = applyLimits(index, 0, n_max-1);
+    return index_clipped;
 }
 
 double LyapController::getIndexFractionBasedOnTime(double t) const
