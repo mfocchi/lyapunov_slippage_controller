@@ -26,8 +26,9 @@
 #define LONG_SLIP_EPSILON 0.01
 
 using namespace std::chrono_literals;
-// specify the level of prints during the execution of the code ABSENT, DEBUG
+// specify the level of prints during the execution of the code ABSENT, DEBUG, MINIMAL
 const Verbosity code_verbosity_sub = ABSENT; 
+const Verbosity code_verbosity_setup = ABSENT; 
 const Verbosity code_verbosity_pub = DEBUG; 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -260,17 +261,17 @@ private:
 		std::vector<double> theta_vec = this->get_parameter("theta_des_rad").as_double_array();
 		bool COPY_WHOLE_TRAJ = this->get_parameter("copy_trajectory").as_bool();
 		
-		t_start = getCurrentTime();
+		this->t_start = getCurrentTime();
 		try{
 			if(COPY_WHOLE_TRAJ)
 			{
-				if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
+				if(code_verbosity_setup == DEBUG || code_verbosity_setup == MINIMAL)
 					std::cout << "Trajectory: copying the whole inputs and trajectory" << std::endl;
 				this->addTrajectory(v_vec, omega_vec, x_vec, y_vec, theta_vec);
 			}
 			else
 			{
-				if(code_verbosity_pub == DEBUG || code_verbosity_pub == MINIMAL)
+				if(code_verbosity_setup == DEBUG || code_verbosity_setup == MINIMAL)
 					std::cout << "Trajectory: copying only control inputs" << std::endl;
 				this->addControlsTrajectory(v_vec, omega_vec);
 			}
@@ -559,7 +560,16 @@ public:
 		{
 			this->pose << pose_init.at(0), pose_init.at(1), pose_init.at(2);
 			Ctrl->setStateOffset(pose_init.at(0), pose_init.at(1), pose_init.at(2));
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "Initialization procedure for initial pose" << std::endl;
 			setupTrajectory();
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "COMPLETED" << std::endl;
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "Initialization of slip variables" << std::endl;
+			initSlipVariables();
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "COMPLETED" << std::endl;
 		}
 		initSlipVariables();
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
@@ -626,9 +636,16 @@ public:
 				throw NO_POSE_FEEDBACK_4_INIT;
 			Ctrl->setStateOffset(x, y, yaw);
 			this->enable_pose_init = false;
-			std::cout << "Pose initialized as ["<< pose(0) << ", "<< pose(1) << ", "<< pose(2) << "]"<<std::endl;
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "Pose initialized as ["<< pose(0) << ", "<< pose(1) << ", "<< pose(2) << "]"<<std::endl;
 			setupTrajectory();
 			this->t_start = getCurrentTime();
+
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "Initialization of slip variables" << std::endl;
+			initSlipVariables();
+			if(code_verbosity_setup == DEBUG)
+				std::cout << "COMPLETED" << std::endl;
 			return;
 		}
 		if(this->n_samples_pose_init == 0.0)
