@@ -161,12 +161,24 @@ double angleWithin2PI(double angle)
 
 double computeTurningRadius(double v, double omega)
 {
-    std::cout << "calculate radius [v,omega] = " << v << ", " << omega << std::endl;
-
     if(omega == 0.0)
         return 0.0;
     else
     {
         return v / omega;
     }
+}
+
+double applyLimits(int idx, int lower_buond, int upper_bound)
+{
+    int idx_res = idx;
+    if(idx > upper_bound)
+    {
+        idx_res = upper_bound;
+    }
+    else if(idx < lower_buond)
+    {
+        idx_res = lower_buond;
+    }
+    return idx_res;
 }
