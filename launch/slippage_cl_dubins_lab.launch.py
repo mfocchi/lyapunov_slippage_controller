@@ -12,7 +12,7 @@ def generate_launch_description():
     origin_RF = [1.0,0.0,0.0,
                  0.0,0.0,-1.0,
                  0.0,1.0,0.0]
-    experiment_id = 1
+    experiment_id = 26
 
     longitudinal_velocity = 0.10
     scale_factor = 2.0 # used to calculate the the scale factor
@@ -44,7 +44,6 @@ def generate_launch_description():
         parameters=[
             {"wheel_radius_m": 0.0856},
             {"wheels_distance_m": 0.606},
-            {'gearbox_ratio': 34.45},
             {"enable_coppeliasim": False},
             {"Kp": Kp},
             {"Ktheta": Kth},
@@ -60,7 +59,7 @@ def generate_launch_description():
             {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
             {'long_slip_outer_coefficients': [0.0390, 0.25]},
             {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
-            {'consider_slippage', True},
+            {'consider_slippage': True},
         ]
     )
     robot_node = Node(
@@ -172,6 +171,8 @@ def get_exp_omega_vec(exp_id, scale_factor):
         return (np.array([0.1111, 0, -0.1111])*scale_factor).tolist()
     elif(exp_id == 35):
         return (np.array([-0.1111, 0.1111, -0.1111])*scale_factor).tolist()
+    elif(exp_id == 100): # special case with one constant curve
+        return (np.array([-0.1111, -0.1111, -0.1111])*scale_factor).tolist()
     elif(exp_id == -1): 
         return [0.5, 0, 0.5]
     else:
@@ -248,6 +249,8 @@ def get_exp_time_vec(exp_id, scale_factor):
     elif(exp_id == 34):
         return (np.array([0.0, 3.1564, 16.8304, 55.1535])/scale_factor).tolist()
     elif(exp_id == 35):
+        return (np.array([0.0, 12.0166, 55.6281, 57.4000])/scale_factor).tolist()
+    elif(exp_id == 100): # special case with one constant curve
         return (np.array([0.0, 12.0166, 55.6281, 57.4000])/scale_factor).tolist()
     elif(exp_id == -1): 
         return [0.0, 1.53204654144835,8.12756557496897,9.74385138162452]
