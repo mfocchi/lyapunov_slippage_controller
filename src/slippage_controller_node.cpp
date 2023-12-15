@@ -160,9 +160,13 @@ private:
 		// estimate alpha, alpha_dot
 		// u(0) = 0.1; // current modification for testing, u should not be bypassed for slips update
 		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);
-		Eigen::Vector2d u_comp(Model->getLinearSpeed(), Model->getAngularSpeed());
+		
+		Eigen::Vector2d u_comp;
 
-		// updateSlipVariables(u_comp); // TESTING: desired control input
+		//TESTING: based on desired control input
+		//u_comp << Model->getLinearSpeed(), Model->getAngularSpeed();
+
+		updateSlipVariables(u_comp); // based on actual values 
 		updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); // TESTING: ref control input
 		
 		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
