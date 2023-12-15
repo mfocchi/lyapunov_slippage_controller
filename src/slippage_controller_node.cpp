@@ -162,10 +162,12 @@ private:
 		updateSlipVariables(u);
 		Eigen::Vector2d wheels_vel;
 		wheels_vel << motor_vel_comp_L, motor_vel_comp_R;
+		
+		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
 		if(code_verbosity_pub == DEBUG)
-			std::cout<<"Wheels control input [rad/s]: LEFT " << wheels_vel(0) << " RIGHT " << wheels_vel(1) << std::endl;
+			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
-		return wheels_vel;
+		return motor_vel;
     }
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
