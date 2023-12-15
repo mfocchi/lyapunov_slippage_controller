@@ -575,7 +575,6 @@ public:
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "COMPLETED" << std::endl;
 		}
-		initSlipVariables();
 		
 		
 
