@@ -184,12 +184,12 @@ private:
 		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(u(0), u(1));
 
-		Eigen::Vector2d wheels_vel;
-		wheels_vel << Model->getLeftWheelRotationalSpeed(), Model->getRightWheelRotationalSpeed();
+		Eigen::Vector2d motor_vel;
+		motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
 		if(code_verbosity_pub == DEBUG)
-			std::cout<<"Wheels control input [rad/s]: LEFT " << wheels_vel(0) << " RIGHT " << wheels_vel(1) << std::endl;
+			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
-		return wheels_vel;
+		return motor_vel;
     }
 
 	Eigen::Vector3d getTrackingErrorMsg()
