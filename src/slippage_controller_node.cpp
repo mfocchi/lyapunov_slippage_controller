@@ -20,7 +20,7 @@
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
-#define MAX_LONG_SLIP 1
+#define MAX_LONG_SLIP 0.8 // 1 but problem with singularities
 #define MIN_LONG_SLIP -10
 #define SIDE_SLIP_EPSILON 0.01
 #define LONG_SLIP_EPSILON 0.01
@@ -73,7 +73,6 @@ private:
 		sensor_msgs::msg::JointState msg_cmd;
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = {cmd(0), cmd(1)};
-		std::cout<<"Filled Joint State msg " << std::endl;
 
 		Eigen::Vector3d tracking_error= getTrackingErrorMsg();
 		geometry_msgs::msg::Vector3Stamped msg_err;
@@ -487,11 +486,12 @@ private:
 		}
 		Eigen::Vector2d u0 = Ctrl->getControlInputDesiredOnTime(0.0);
 		int dt = this->get_parameter("pub_dt_ms").as_int();
-	
+		
 		this->alpha_dot_prev = 0.0;
 		this->alpha_dot = 0.0;
 		// init side slip with expected value from desired velocities
 		double alpha = computeSideSlipAngle(u0);
+
 		this->alpha_prev_1.data = alpha; // store alpha value at time dt*(k-1)
 		this->alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-1)
 		this->alpha_prev_2.data = alpha; // store alpha value at time dt*(k-2)
@@ -576,6 +576,9 @@ public:
 				std::cout << "COMPLETED" << std::endl;
 		}
 		initSlipVariables();
+		
+		
+
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
 		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
