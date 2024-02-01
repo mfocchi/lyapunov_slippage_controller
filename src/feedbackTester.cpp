@@ -10,6 +10,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "lyapunov_slippage_controller/motionModels.h"
+#include  <iomanip>
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH 2

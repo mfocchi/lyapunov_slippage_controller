@@ -7,6 +7,7 @@
 #include "rclcpp/logging.hpp"
 
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -28,7 +29,7 @@
 using namespace std::chrono_literals;
 // specify the level of prints during the execution of the code ABSENT, DEBUG, MINIMAL
 const Verbosity code_verbosity_sub = ABSENT; 
-const Verbosity code_verbosity_setup = ABSENT; 
+const Verbosity code_verbosity_setup = DEBUG; 
 const Verbosity code_verbosity_pub = DEBUG; 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -40,6 +41,11 @@ private:
     rclcpp::TimerBase::SharedPtr timer_cmd;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_cmd;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_trk_error;
+	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_reference;
+	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_actual;
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_slippage_commands;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_unicycle_commands;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_alpha;
 	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub;
     LyapControllerPtr Ctrl;
 	std::shared_ptr<DifferentialDriveModel> Model;
@@ -48,6 +54,8 @@ private:
 	double t_pose_init;
 	double alpha_dot_prev;
 	double alpha_dot;
+	Eigen::Vector2d u_bar;
+	Eigen::Vector2d u;
 
 	Measurement1D alpha_prev_1; // store alpha value at time dt*(k-2)
 	Measurement1D alpha_prev_2; // store alpha value at time dt*(k-1)
@@ -73,6 +81,7 @@ private:
 		sensor_msgs::msg::JointState msg_cmd;
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = {cmd(0), cmd(1)};
+		pub_cmd->publish(msg_cmd);
 
 		Eigen::Vector3d tracking_error= getTrackingErrorMsg();
 		geometry_msgs::msg::Vector3Stamped msg_err;
@@ -80,9 +89,40 @@ private:
 		msg_err.vector.y = tracking_error(1);
 		msg_err.vector.z = tracking_error(2);
 		msg_err.header.stamp = this->get_clock()->now();
-		msg_err.header.frame_id = "world";
-		pub_cmd->publish(msg_cmd);
+		msg_err.header.frame_id = "world";		
 		pub_trk_error->publish(msg_err);
+
+		geometry_msgs::msg::Vector3Stamped msg_actual_pos;
+	    msg_actual_pos.vector.x = this->pose(0);
+		msg_actual_pos.vector.y = this->pose(1);
+		msg_actual_pos.vector.z = this->pose(2);
+		msg_actual_pos.header.stamp = this->get_clock()->now();
+		msg_actual_pos.header.frame_id = "world";		
+		pub_actual->publish(msg_actual_pos);
+
+		geometry_msgs::msg::Vector3Stamped msg_reference_pos;
+		Eigen::Vector3d pose_ref = Ctrl->getPoseDesiredOnTime(getCurrentTime() - t_start);
+		msg_reference_pos.vector.x = pose_ref(0);
+		msg_reference_pos.vector.y = pose_ref(1);
+		msg_reference_pos.vector.z = pose_ref(2);
+		msg_reference_pos.header.stamp = this->get_clock()->now();
+		msg_reference_pos.header.frame_id = "world";		
+		pub_reference->publish(msg_reference_pos);
+	
+		std_msgs::msg::Float64MultiArray msg_slippage_commands;
+		msg_slippage_commands.data.push_back(u(0));  
+		msg_slippage_commands.data.push_back(u(1));
+		pub_slippage_commands->publish(msg_slippage_commands);
+
+		std_msgs::msg::Float64MultiArray msg_unicycle_commands;
+		msg_unicycle_commands.data.push_back(u_bar(0));  
+		msg_unicycle_commands.data.push_back(u_bar(1));
+		pub_unicycle_commands->publish(msg_unicycle_commands);
+
+		std_msgs::msg::Float64MultiArray msg_alpha;
+		msg_alpha.data.push_back(this->alpha_prev_1.data);
+		msg_alpha.data.push_back(this->alpha_dot);
+		pub_alpha->publish(msg_alpha);
     }
 
     void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
@@ -140,11 +180,11 @@ private:
 	
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 
-		Eigen::Vector2d u_bar = Ctrl->run(pose_bar);
+		u_bar = Ctrl->run(pose_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u compensated control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
 
-		Eigen::Vector2d u = convertskidSteering(u_bar);
+		u = convertskidSteering(u_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 

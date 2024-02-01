@@ -12,7 +12,7 @@ def generate_launch_description():
     origin_RF = [1.0,0.0,0.0,
                  0.0,0.0,-1.0,
                  0.0,1.0,0.0]
-    experiment_id = 26
+    experiment_id = 100
 
     longitudinal_velocity = 0.10
     scale_factor = 2.0 # used to calculate the the scale factor
@@ -24,6 +24,10 @@ def generate_launch_description():
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     # stop execution of control inputs
     v_vec.append(0.0)
+    v_vec.append(0.0)
+    v_vec.append(0.0)
+    omega_vec.append(0.0)
+    omega_vec.append(0.0)
     omega_vec.append(0.0)
 
     pose_init = [0.0,0.0,0.0]
@@ -59,7 +63,7 @@ def generate_launch_description():
             {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
             {'long_slip_outer_coefficients': [0.0390, 0.25]},
             {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
-            {'consider_slippage': True},
+            {'consider_slippage': False},
         ]
     )
     robot_node = Node(
