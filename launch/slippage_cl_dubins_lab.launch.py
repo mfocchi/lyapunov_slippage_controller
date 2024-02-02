@@ -77,7 +77,7 @@ def generate_launch_description():
 
     dt_string = now.strftime("%d-%m-%H-%M-%S")
     param_string = 'exp_%i_' % (experiment_id)
-    bag_string = 'bagfiles/slip_dub_'
+    bag_string = 'bagfiles/slip_test_'
     bag_name = bag_string + param_string + dt_string + '.bag'
     record_node = ExecuteProcess(
         cmd=['ros2', 'bag', 'record', '-a', '-o%s' %bag_name]

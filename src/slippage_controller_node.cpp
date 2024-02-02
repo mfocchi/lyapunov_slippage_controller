@@ -192,7 +192,8 @@ private:
 		u_bar = Ctrl->run(pose_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u compensated control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-
+		
+		//compute commands with side slip compensation
 		u = convertskidSteering(u_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
@@ -205,18 +206,15 @@ private:
 		// compensate the longitudinal slip
 		double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
 		double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
+		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
+		//TESTING 2 : do not compensate long slip
+		//Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
 
 		// estimate alpha, alpha_dot
-		// u(0) = 0.1; // current modification for testing, u should not be bypassed for slips update
-		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);
-		
-		Eigen::Vector2d u_comp;
-
-		//TESTING: based on desired control input
-		//u_comp << Model->getLinearSpeed(), Model->getAngularSpeed();
-
-		updateSlipVariables(u_comp); // based on actual values 
-		updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); // TESTING: ref control input
+		//compute alpha based on slip compensated control input 
+		updateSlipVariables(u);
+		// TESTING 1: compute alpha based on desired control input
+		//updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
 		
 		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
 		if(code_verbosity_pub == DEBUG)
@@ -512,6 +510,9 @@ private:
 		}
 		this->alpha_dot_prev = this->alpha_dot;
 		this->alpha_dot	= computeSideSlipDerivative();
+		//TESTING 3: set alpha_dot = 0
+		//this->alpha_dot	= 0.;
+
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "alpha dot k-1=" << this->alpha_dot << " [rad/s]"<< std::endl;
