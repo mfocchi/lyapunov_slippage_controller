@@ -6,6 +6,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/logging.hpp"
 
+
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2/LinearMath/Quaternion.h"
@@ -25,6 +26,12 @@
 #define MIN_LONG_SLIP -10
 #define SIDE_SLIP_EPSILON 0.01
 #define LONG_SLIP_EPSILON 0.01
+
+#define RESET   "\033[0m"
+#define RED     "\033[31m"      /* Red */
+#define prt(x) std::cout << RED << #x " = \n" << x << "\n" << RESET<< std::endl;
+#define prt_vec(x) for( int i = 0; i < x.size(); i++) {std::cout << x[i] << " \n";};
+
 
 using namespace std::chrono_literals;
 // specify the level of prints during the execution of the code ABSENT, DEBUG, MINIMAL
@@ -75,7 +82,7 @@ private:
     {
 		if(enable_pose_init == true)
 		{
-			return;
+			return;// do not publish anything till is initialized
 		}
 		Eigen::Vector2d cmd = (enable_slippage) ? trackTrajectorySlippage() : trackTrajectoryClassic();
 		sensor_msgs::msg::JointState msg_cmd;
@@ -92,6 +99,8 @@ private:
 		msg_err.header.frame_id = "world";		
 		pub_trk_error->publish(msg_err);
 
+
+		prt(this->pose)
 		geometry_msgs::msg::Vector3Stamped msg_actual_pos;
 	    msg_actual_pos.vector.x = this->pose(0);
 		msg_actual_pos.vector.y = this->pose(1);
@@ -628,6 +637,12 @@ public:
 
 		pub_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/command", qos_ctrl);
 		pub_trk_error = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/tracking_error", qos_ctrl);
+		pub_actual = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_act", qos_ctrl);
+		pub_reference = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_ref", qos_ctrl);
+		pub_slippage_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/slippage_commands", qos_ctrl);
+		pub_unicycle_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/unicycle_commands", qos_ctrl);
+		pub_alpha = this->create_publisher<std_msgs::msg::Float64MultiArray>("/alpha_alpha_dot", qos_ctrl);
+		
 		
 		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
 			"/optitrack/pose", 
@@ -680,7 +695,7 @@ public:
 
 	void initProcedure(double x, double y, double yaw) 
 	{	
-		if(getCurrentTime() - t_start > this->t_pose_init)
+		if((getCurrentTime() - t_start) > this->t_pose_init)
 		{
 			if(this->n_samples_pose_init == 0.0)
 				throw NO_POSE_FEEDBACK_4_INIT;
@@ -695,7 +710,7 @@ public:
 				std::cout << "Initialization of slip variables" << std::endl;
 			initSlipVariables();
 			if(code_verbosity_setup == DEBUG)
-				std::cout << "COMPLETED" << std::endl;
+				std::cout << "INIT COMPLETED with tstart: " << this->t_start  <<std::endl;
 			return;
 		}
 		if(this->n_samples_pose_init == 0.0)
