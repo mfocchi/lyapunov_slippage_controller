@@ -52,7 +52,7 @@ def generate_launch_description():
             {"Kp": Kp},
             {"Ktheta": Kth},
             {"dt": path_gen_dt},
-            {"pub_dt_ms": 10},
+            {"pub_dt_ms": 5},
             {"v_des_mps" : v_vec},
             {"omega_des_radps" : omega_vec},
             {"pose_init_m_m_rad" : pose_init},
