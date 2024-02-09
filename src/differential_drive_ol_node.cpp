@@ -9,14 +9,15 @@
 #include "lyapunov_slippage_controller/coppeliaSimNode.h"
 #include "lyapunov_slippage_controller/differential_drive_model.h"
 #include "lyapunov_slippage_controller/motionModels.h"
-
+#include "std_msgs/msg/float64_multi_array.hpp"
 
 using namespace std::chrono_literals;
 
 class DifferentialDriveOpenLoopNode : public CoppeliaSimNode
 {
 private:
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_cmd;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_wheel_cmd;
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_vel;
     rclcpp::TimerBase::SharedPtr timer_cmd;
     std::vector<double> longitudinal_velocity;
     std::vector<double> angular_velocity;
@@ -43,7 +44,13 @@ private:
 			motor_vel_right
 		};
         
-		pub_cmd->publish(msg_cmd);
+		pub_wheel_cmd->publish(msg_cmd);
+
+		std_msgs::msg::Float64MultiArray msg_des_vel;
+		msg_des_vel.data.push_back(v);  
+		msg_des_vel.data.push_back(omega);
+		pub_des_vel->publish(msg_des_vel);
+
         iter++;
     }
 
@@ -70,8 +77,8 @@ public:
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
 
-		pub_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/command", qos_ctrl);
-
+		pub_wheel_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/wheel_cmd", qos_ctrl);
+		pub_des_vel = this->create_publisher<std_msgs::msg::Float64MultiArray>("/des_vel", qos_ctrl);
 		timer_cmd = this->create_wall_timer(
 			std::chrono::milliseconds(pub_dt), 
 			std::bind(&DifferentialDriveOpenLoopNode::timer_cmd_callback, this));
