@@ -61,6 +61,7 @@ private:
 	double t_pose_init;
 	double alpha_dot_prev;
 	double alpha_dot;
+	double alpha_dot_f = 0.;
 	Eigen::Vector2d u_bar;
 	Eigen::Vector2d u;
 
@@ -99,8 +100,6 @@ private:
 		msg_err.header.frame_id = "world";		
 		pub_trk_error->publish(msg_err);
 
-
-		prt(this->pose)
 		geometry_msgs::msg::Vector3Stamped msg_actual_pos;
 	    msg_actual_pos.vector.x = this->pose(0);
 		msg_actual_pos.vector.y = this->pose(1);

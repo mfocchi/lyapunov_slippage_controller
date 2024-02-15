@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 from datetime import datetime
 from launch.actions import ExecuteProcess
 import numpy as np
-
+import launch
 def generate_launch_description():
     ld = LaunchDescription()
 
@@ -63,8 +63,9 @@ def generate_launch_description():
             {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
             {'long_slip_outer_coefficients': [0.0390, 0.25]},
             {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
-            {'consider_slippage': False},
-        ]
+            {'consider_slippage': True},
+        ],
+        on_exit=launch.actions.Shutdown(),
     )
     robot_node = Node(
         package="maxxii_interface",
