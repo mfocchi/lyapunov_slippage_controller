@@ -205,9 +205,13 @@ private:
 		// compensate the longitudinal slip
 		double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
 		double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
+		
+		
 		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
+		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
 		//TESTING 2 : do not compensate long slip
 		//Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
+		//Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
 
 		// estimate alpha, alpha_dot
 		//compute alpha based on slip compensated control input 
@@ -215,7 +219,7 @@ private:
 		// TESTING 1: compute alpha based on desired control input
 		//updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
 		
-		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
+		
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
@@ -229,7 +233,7 @@ private:
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 
-		Eigen::Vector2d u = Ctrl->run(this->pose);
+		u = Ctrl->run(this->pose);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 
@@ -467,15 +471,14 @@ private:
 	Compute the derivative of alpha (side slip angle) with a derivative filter implemented using
 	Backward Euler 
 	*/
-	double computeSideSlipDerivative() const
+	double computeSideSlipDerivative() 
 	{
 		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
 		if(dt == 0.0)
 			throw SINGULARITY_DT_ALPHA_DOT;
 		if(dt <= 0.0)
 			throw NEGATIVE_DT_ALPHA_DOT;
-		static double alpha_dot_f = 0.;
-		double beta = 0.01;
+		double beta = 0.005;
 		double alpha_dot =  (alpha_prev_1.data - alpha_prev_2.data) / dt;
 		alpha_dot_f = (1-beta)*alpha_dot_f + beta * alpha_dot;
 		return alpha_dot_f;
@@ -510,7 +513,7 @@ private:
 		this->alpha_dot_prev = this->alpha_dot;
 		this->alpha_dot	= computeSideSlipDerivative();
 		//TESTING 3: set alpha_dot = 0
-		//this->alpha_dot	= 0.;
+		this->alpha_dot	= 0.;
 
 		if(code_verbosity_pub == DEBUG)
 		{
