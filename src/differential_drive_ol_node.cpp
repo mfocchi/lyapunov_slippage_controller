@@ -11,6 +11,12 @@
 #include "lyapunov_slippage_controller/motionModels.h"
 #include "std_msgs/msg/float64_multi_array.hpp"
 
+
+#define RESET   "\033[0m"
+#define RED     "\033[31m"      /* Red */
+#define prt(x) std::cout << RED << #x " = \n" << x << "\n" << RESET<< std::endl;
+#define prt_vec(x) for( int i = 0; i < x.size(); i++) {std::cout << x[i] << " \n";};
+
 using namespace std::chrono_literals;
 
 class DifferentialDriveOpenLoopNode : public CoppeliaSimNode
@@ -37,7 +43,8 @@ private:
         Model->setUnicycleSpeed(v, omega);
 		double motor_vel_left  = Model->getLeftMotorRotationalSpeed();
 		double motor_vel_right = Model->getRightMotorRotationalSpeed();
-
+		// prt(long(angular_velocity.size()))
+		// prt(iter)
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = std::vector<double>{
 			motor_vel_left, 
@@ -77,7 +84,7 @@ public:
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
 
-		pub_wheel_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/wheel_cmd", qos_ctrl);
+		pub_wheel_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/command", qos_ctrl);
 		pub_des_vel = this->create_publisher<std_msgs::msg::Float64MultiArray>("/des_vel", qos_ctrl);
 		timer_cmd = this->create_wall_timer(
 			std::chrono::milliseconds(pub_dt), 
