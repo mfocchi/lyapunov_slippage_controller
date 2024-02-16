@@ -1,5 +1,11 @@
 #include "generalPurpose.h"
 
+double sign(double x) {
+  if (x > 0.0) return 1.0;
+  if (x < 0.0) return -1.0;
+  return x;
+}
+
 void computeQuaternion(double roll, double pitch, double yaw, std::vector<double> *q)
 {
     double cr = cos(roll  * 0.5);

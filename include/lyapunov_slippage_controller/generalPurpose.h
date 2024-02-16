@@ -37,5 +37,6 @@ double angleWithin2PI(double angle);
 double movingAverage(double val, double n);
 double computeTurningRadius(double v, double omega);
 double applyLimits(int idx, int lower_buond, int upper_bound);
+double sign(double x);
 
 #endif
