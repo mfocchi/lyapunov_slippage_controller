@@ -10,7 +10,7 @@
 #include "lyapunov_slippage_controller/differential_drive_model.h"
 #include "lyapunov_slippage_controller/motionModels.h"
 #include "std_msgs/msg/float64_multi_array.hpp"
-
+#include "lyapunov_slippage_controller/generalPurpose.h"
 
 #define RESET   "\033[0m"
 #define RED     "\033[31m"      /* Red */
@@ -28,6 +28,7 @@ private:
     std::vector<double> longitudinal_velocity;
     std::vector<double> angular_velocity;
 	std::shared_ptr<DifferentialDriveModel> Model;
+	double deadband = 1.0;
     size_t count_; 
     long iter;
 
@@ -43,15 +44,16 @@ private:
         Model->setUnicycleSpeed(v, omega);
 		double motor_vel_left  = Model->getLeftMotorRotationalSpeed();
 		double motor_vel_right = Model->getRightMotorRotationalSpeed();
-		// prt(long(angular_velocity.size()))
-		// prt(iter)
+		motor_vel_left += sign(motor_vel_left)*deadband;
+		motor_vel_right += sign(motor_vel_right)*deadband;
+
+		msg_cmd.header.stamp = this->get_clock()->now();
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = std::vector<double>{
 			motor_vel_left, 
 			motor_vel_right
 		};
-        
-		pub_wheel_cmd->publish(msg_cmd);
+        pub_wheel_cmd->publish(msg_cmd);
 
 		std_msgs::msg::Float64MultiArray msg_des_vel;
 		msg_des_vel.data.push_back(v);  
