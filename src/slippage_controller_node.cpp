@@ -141,15 +141,18 @@ private:
 			msg->pose.orientation.z,
 			msg->pose.orientation.w);
 		tf2::Matrix3x3 R(q);
-		R = tf2::Matrix3x3(
-			origin_RF[0], origin_RF[1], origin_RF[2],
-			origin_RF[3], origin_RF[4], origin_RF[5],
-			origin_RF[6], origin_RF[7], origin_RF[8]) * R;
 
-		// Transform the coordinate system into the classic x,y on plane,z upwards
-		double x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
-		double y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
-		
+		double x = msg->pose.position.x;
+		double y = msg->pose.position.y;
+		//we perform rotation already in optitrack
+		// R = tf2::Matrix3x3(
+		// 	origin_RF[0], origin_RF[1], origin_RF[2],
+		// 	origin_RF[3], origin_RF[4], origin_RF[5],
+		// 	origin_RF[6], origin_RF[7], origin_RF[8]) * R;
+
+		// // Transform the coordinate system into the classic x,y on plane,z upwards
+		// double x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
+		// double y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
 		//double z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
 
 		double roll, pitch, yaw;
@@ -182,12 +185,23 @@ private:
 	controller and finally the effects of slippage are compensated by a transformer */
     Eigen::Vector2d trackTrajectorySlippage()
     {
+
+
+		
+		// // conversion block from unicycle to differential drive
+		// Model->setUnicycleSpeed(u(0), u(1));
+
+		// Eigen::Vector2d motor_vel;
+		// motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
+		// if(code_verbosity_pub == DEBUG)
+		// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
+
 		// compute an estimation of the longitudinal and lateral slips
 		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
 		Eigen::Vector3d pose_bar = pose + pose_offset; 
 	
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
-
+		
 		u_bar = Ctrl->run(pose_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u compensated control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
@@ -196,7 +210,6 @@ private:
 		u = convertskidSteering(u_bar);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-
 		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(u(0), u(1));
 		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
