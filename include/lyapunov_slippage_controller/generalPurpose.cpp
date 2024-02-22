@@ -21,6 +21,36 @@ void computeQuaternion(double roll, double pitch, double yaw, std::vector<double
     q->at(3) = cr * cp * cy - sr * sp * sy;
 }
 
+Eigen::Vector3d  euler_from_quaternion(tf2::Quaternion & quaternion)
+{
+
+
+    double t0, t1, t2, t3, t4;
+    Eigen::Vector3d rpy;
+    rpy.setZero();
+
+    t0 = +2.0 * (quaternion.w() * quaternion.x() + quaternion.y() * quaternion.z());
+    t1 = +1.0 - 2.0 * (quaternion.x() * quaternion.x() + quaternion.y() * quaternion.y());
+    rpy[0] = atan2(t0, t1);
+
+    t2 = +2.0 * (quaternion.w() * quaternion.y() - quaternion.z() * quaternion.x());
+    if (t2 > +1.0)
+    {
+        t2 = +1.0;
+    }
+    if (t2 < -1.0){
+        t2 = -1.0;
+    }
+
+    rpy[1] = asin(t2);
+
+    t3 = +2.0 * (quaternion.w() * quaternion.z() + quaternion.x() * quaternion.y());
+    t4 = +1.0 - 2.0 * (quaternion.y() * quaternion.y() + quaternion.z() * quaternion.z());
+    rpy[2] = atan2(t3, t4);
+        
+    return rpy;
+} 
+
 Eigen::MatrixXd fillMatrix(std::vector<double> vec)
 {
     Eigen::MatrixXd M(vec.size(), vec.size());

@@ -5,7 +5,7 @@
 #include <string>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/logging.hpp"
-
+#include <math.h> 
 
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
@@ -133,6 +133,8 @@ private:
 		pub_alpha->publish(msg_alpha);
     }
 
+	
+
     void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
     {		
 		tf2::Quaternion q(
@@ -140,7 +142,7 @@ private:
 			msg->pose.orientation.y,
 			msg->pose.orientation.z,
 			msg->pose.orientation.w);
-		tf2::Matrix3x3 R(q);
+		
 
 		double x = msg->pose.position.x;
 		double y = msg->pose.position.y;
@@ -156,8 +158,10 @@ private:
 		//double z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
 
 		double roll, pitch, yaw;
-		R.getEulerYPR(yaw, pitch, roll);
-		yaw = angleWithinPI(yaw);
+		Eigen::Vector3d rpy = euler_from_quaternion(q);
+		
+		
+		yaw = angleWithinPI(rpy[2]);
 
 		if(code_verbosity_sub == DEBUG)
 		{
@@ -216,21 +220,21 @@ private:
 		double motor_vel_R = Model->getRightMotorRotationalSpeed();
 		
 		// compensate the longitudinal slip
-		double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
-		double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
+		// double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
+		// double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
 		
 		
-		Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
-		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
-		//TESTING 2 : do not compensate long slip
-		//Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
-		//Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
+		//Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
+		//Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
+		//TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
+		Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
+		Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
 
 		// estimate alpha, alpha_dot
 		//compute alpha based on slip compensated control input 
 		updateSlipVariables(u);
 		// TESTING 1: compute alpha based on desired control input
-		//updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
+		updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
 		
 		
 		if(code_verbosity_pub == DEBUG)

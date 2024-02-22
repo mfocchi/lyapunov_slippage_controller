@@ -13,6 +13,7 @@
 #include "motionModels.h"
 #include "error_codes.h"
 
+
 class LyapController;
 typedef std::shared_ptr<LyapController> LyapControllerPtr;
 
@@ -71,6 +72,7 @@ public:
     Eigen::Vector2d getControlInputDesiredOnTime(double t) const;
     Eigen::Vector3d getPoseDesiredOnTime(double t) const;
     std::string stringSetupInfo() const;
+
 
 };      
 

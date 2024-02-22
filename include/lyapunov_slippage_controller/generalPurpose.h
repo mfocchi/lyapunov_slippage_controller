@@ -8,6 +8,8 @@
 #include <iostream>
 #include <memory>
 #include <cmath>
+#include "tf2/LinearMath/Quaternion.h"
+
 #define GRAVITY 9.81
 #define POW2GRAVITY 96.24
 
@@ -38,5 +40,6 @@ double movingAverage(double val, double n);
 double computeTurningRadius(double v, double omega);
 double applyLimits(int idx, int lower_buond, int upper_bound);
 double sign(double x);
+Eigen::Vector3d euler_from_quaternion(tf2::Quaternion & quaternion);
 
 #endif

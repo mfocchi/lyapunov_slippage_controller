@@ -3,12 +3,13 @@ from launch_ros.actions import Node
 import numpy as np
 from launch.actions import ExecuteProcess
 from datetime import datetime
-
+import math
 
 def generate_launch_description():
     np.set_printoptions(threshold=np.inf, precision = 5, linewidth = 10000, suppress = True)
     ld = LaunchDescription()
     
+    #fixed
     # dt = 0.005 # [s]
     # long_v = -0.0 # [m/s]
     # # turning_radius = -0.3 # [m]
@@ -21,28 +22,52 @@ def generate_launch_description():
     # v_vec.append(0.0)
     # omega_vec.append(0.0)
 
+    #variable radius of curvature (change with angle)
+    # R_initial = 0.1
+    # R_final = 0.6
+    # dt = 0.005  # [s] 200Hz
+    # long_v = 0.1  # [m/s]
+    # change_percentage = 0.5
+    # turning_radius = np.arange(R_initial, R_final, 0.1)
+    # ang_w = np.round(long_v / turning_radius,3)  # [rad/s]
+    # omega_vec = []
+    # v_vec = []
+    # theta = 0
+    # i = 0
+    # while True:
+    #     theta += abs(ang_w[i])*dt
+    #     #print(theta)
+    #     omega_vec.append(ang_w[i])
+    #     v_vec.append(long_v)
+    #     if (theta > (1+i)*(2*np.pi * change_percentage)):
+    #         i +=1
+    #     if i == len(turning_radius):
+    #         break
+    # v_vec.append(0.0)
+    # omega_vec.append(0.0)
+
+
+    #variable radius of curvature (change with angle)
     R_initial = 0.1
     R_final = 0.6
     dt = 0.005  # [s] 200Hz
     long_v = 0.1  # [m/s]
-    change_percentage = 0.5
+    change_interval = 8.
     turning_radius = np.arange(R_initial, R_final, 0.1)
     ang_w = np.round(long_v / turning_radius,3)  # [rad/s]
     omega_vec = []
     v_vec = []
-    theta = 0
+    time = 0
     i = 0
     while True:
-        theta += abs(ang_w[i])*dt
-        #print(theta)
+        time = np.round(time +dt,3)
         omega_vec.append(ang_w[i])
         v_vec.append(long_v)
-        if (theta > (1+i)*(2*np.pi * change_percentage)):
+        #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
+        if time > ((1+i)*change_interval):
             i +=1
         if i == len(turning_radius):
             break
-    #print(omega_vec)
-    #print(ang_w)
     v_vec.append(0.0)
     omega_vec.append(0.0)
 
