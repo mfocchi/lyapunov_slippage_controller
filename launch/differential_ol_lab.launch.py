@@ -48,13 +48,29 @@ def generate_launch_description():
 
 
     #variable radius of curvature (change with angle)
-    R_initial = 0.1
-    R_final = 0.6
+    # R_initial = 0.05
+    # R_final = 0.6
+    # dt = 0.005  # [s] 200Hz
+    # long_v = 0.1  # [m/s]
+    # change_interval = 6.
+    # increment = 0.05
+    # turning_radius = np.arange(R_initial, R_final, increment)
+    # turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
+    # turning_radius_3 = np.append(turning_radius_2 , np.arange(R_initial+increment/3, R_final-2*increment/3, increment))
+    # turning_radius_vec = turning_radius_3
+
+    #only around 0.3
+    R_initial = 0.24
+    R_final = 0.33
     dt = 0.005  # [s] 200Hz
     long_v = 0.1  # [m/s]
-    change_interval = 8.
-    turning_radius = np.arange(R_initial, R_final, 0.1)
-    ang_w = np.round(long_v / turning_radius,3)  # [rad/s]
+    change_interval = 6.
+    increment = 0.005
+    turning_radius_vec = -np.arange(R_initial, R_final, increment)
+  
+
+
+    ang_w = np.round(long_v / turning_radius_vec, 3)  # [rad/s]
     omega_vec = []
     v_vec = []
     time = 0
@@ -66,11 +82,11 @@ def generate_launch_description():
         #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
         if time > ((1+i)*change_interval):
             i +=1
-        if i == len(turning_radius):
+        if i == len(turning_radius_vec):
             break
     v_vec.append(0.0)
     omega_vec.append(0.0)
-
+    print(turning_radius_vec)
 
     optitrack_node = model_conv_node = Node(
         package="optitrack_interface",
