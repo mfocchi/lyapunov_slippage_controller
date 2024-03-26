@@ -60,9 +60,12 @@ def generate_launch_description():
             {"origin_RF" : origin_RF},
             {'automatic_pose_init': True},
             {'time_for_pose_init_s': 1.0},
-            {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
-            {'long_slip_outer_coefficients': [0.0390, 0.25]},
-            {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
+            # {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
+            # {'long_slip_outer_coefficients': [0.0390, 0.25]},
+            # {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
+            {'side_slip_angle_coefficients': [ -198.0144, -104.1848, -0.4324, -4.4300]}, #this are for left turn positive radius
+            {'long_slip_outer_coefficients': [0.0322, -1.1858]},#this are for left turn positive radius
+            {'long_slip_inner_coefficients': [-0.0580, 0.2857]},#this are for left turn positive radius
             {'consider_slippage': True},
         ],
         on_exit=launch.actions.Shutdown(),

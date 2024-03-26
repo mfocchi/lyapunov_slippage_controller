@@ -77,6 +77,9 @@ private:
 	bool enable_pose_init;
 	bool enable_slippage;
 	double n_samples_pose_init;
+
+
+
 	
 
 	void timerCmdCallback()
@@ -191,54 +194,54 @@ private:
     {
 
 
-		
+		// Ctrl->setCurrentTime(getCurrentTime() - t_start);
+		// u = Ctrl->run(this->pose);
+		// if(code_verbosity_pub == DEBUG)
+		// 	std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 		// // conversion block from unicycle to differential drive
 		// Model->setUnicycleSpeed(u(0), u(1));
-
 		// Eigen::Vector2d motor_vel;
 		// motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
 		// if(code_verbosity_pub == DEBUG)
 		// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
-		// compute an estimation of the longitudinal and lateral slips
-		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data);
-		Eigen::Vector3d pose_bar = pose + pose_offset; 
+		// // compute an estimation of the longitudinal and lateral slips
+		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data<);
+		Eigen::Vector3d pose_bar = this->pose + pose_offset; 
 	
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 		
 		u_bar = Ctrl->run(pose_bar);
-		if(code_verbosity_pub == DEBUG)
-			std::cout<<"u compensated control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-		
-		//compute commands with side slip compensation
+	
+		// compute commands with side slip compensation
 		u = convertskidSteering(u_bar);
 		if(code_verbosity_pub == DEBUG)
-			std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
+		 	std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
+			std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 		// conversion block from unicycle to differential drive
 		Model->setUnicycleSpeed(u(0), u(1));
 		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
 		double motor_vel_R = Model->getRightMotorRotationalSpeed();
 		
-		// compensate the longitudinal slip
-		// double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
-		// double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);
+		// // compensate the longitudinal slip
+		// // double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
+		// // double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);	
+		// //Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
+		// //Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
 		
-		
-		//Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
-		//Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
-		//TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
+		// //TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
 		Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
 		Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
 
-		// estimate alpha, alpha_dot
-		//compute alpha based on slip compensated control input 
-		updateSlipVariables(u);
-		// TESTING 1: compute alpha based on desired control input
-		updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
+		// // estimate alpha, alpha_dot
+		// //compute alpha based on slip compensated control input 
+		// updateSlipVariables(u);
+		// // TESTING 1: compute alpha based on desired control input
+		// updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
 		
 		
-		if(code_verbosity_pub == DEBUG)
-			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
+		// if(code_verbosity_pub == DEBUG)
+		// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
 		return motor_vel;
     }
@@ -365,18 +368,25 @@ private:
 			return 0.0;
 		}
 		double R = computeTurningRadius(u(0), u(1));
-		double a0,a1,a2;
+		// double a0,a1,a2;
+		// a0 = this->alpha_coeff.at(0);
+		// a1 = this->alpha_coeff.at(1);
+		// a2 = this->alpha_coeff.at(2);
+        // // {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
+
+		// // model side slip as a plyinomial in the curvature
+		// //TODO this can have division by zero! implement it better
+		// double K = 1/(R+0.001);
+		// double alpha = -0.0610487 + (-0.0185)*K +  (-0.0014)*(K*K); // simplified notation
+		// // double alpha = a0 + a1*pow((a2 + 1/R), 2); // original
+		// // double alpha = -0.0005937 * 1/(R*R);
+		double a0,a1,a2,a3;
 		a0 = this->alpha_coeff.at(0);
 		a1 = this->alpha_coeff.at(1);
 		a2 = this->alpha_coeff.at(2);
-        // {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
+		a3 = this->alpha_coeff.at(3);
 
-		// model side slip as a plyinomial in the curvature
-		//TODO this can have division by zero! implement it better
-		double K = 1/(R+0.001);
-		double alpha = -0.0610487 + (-0.0185)*K +  (-0.0014)*(K*K); // simplified notation
-		// double alpha = a0 + a1*pow((a2 + 1/R), 2); // original
-		// double alpha = -0.0005937 * 1/(R*R);
+		double alpha = a0*exp(a1*R) + a2*exp(a3*R);
 		if(R > 0.0) // turning left
 		{
 			return alpha;
@@ -398,25 +408,29 @@ private:
 		}
 		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
+		double long_slip;
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "R=" << R << std::endl;
 		}
-		if(R >= 0.0) // turning left, left wheel is inner
+		if(R >= 0.0) // turning left, left wheel is inner there is discontinuity
 		{
+			
 			a0 = this->i_inner_coeff.at(0);
 			a1 = this->i_inner_coeff.at(1);
+			long_slip = a0/((0.319-R))+a1*R;
 		}
-		else
+		else // turning right , left wheel is outer
 		{
 			a0 = this->i_outer_coeff.at(0);
 			a1 = this->i_outer_coeff.at(1);
+			long_slip = a0*(-R)+a1;
 		}
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
 		}
-		return computeLongSlip(R, a0, a1);
+		return long_slip; //computeLongSlip(R, a0, a1);
 	}
 
 	double computeRightWheelLongSlip(const Eigen::Vector2d& u) const
@@ -430,6 +444,7 @@ private:
 		}
 		double a0, a1;
 		double R = computeTurningRadius(u(0), u(1));
+		double long_slip;
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "R=" << R << std::endl;
@@ -438,17 +453,19 @@ private:
 		{
 			a0 = this->i_inner_coeff.at(0);
 			a1 = this->i_inner_coeff.at(1);
+			long_slip = -a0/((-0.317-R))-a1*R;
 		}
-		else
+		else // turning left , right wheel is outer
 		{
 			a0 = this->i_outer_coeff.at(0);
 			a1 = this->i_outer_coeff.at(1);
+			long_slip = a0*(R)+a1;
 		}
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
 		}
-		return computeLongSlip(R, a0, a1);
+		return long_slip; //computeLongSlip(R, a0, a1);
 	}
 
 	double computeLongSlip(double R, double a0, double a1) const
