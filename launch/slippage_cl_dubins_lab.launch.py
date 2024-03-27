@@ -20,8 +20,11 @@ def generate_launch_description():
     times_dubins_vec = get_exp_time_vec(experiment_id, scale_factor)
     path_gen_dt = 0.005
     omega_vec = extract_settings_from_dubins(omega_dubins_vec, times_dubins_vec, path_gen_dt)
+    
     n = len(omega_vec)
+    n = 2000
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
+    omega_vec     = np.linspace(0.5,0.5, n).tolist()
     # stop execution of control inputs
     v_vec.append(0.0)
     v_vec.append(0.0)
@@ -63,9 +66,12 @@ def generate_launch_description():
             # {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
             # {'long_slip_outer_coefficients': [0.0390, 0.25]},
             # {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
-            {'side_slip_angle_coefficients': [ -198.0144, -104.1848, -0.4324, -4.4300]}, #this are for left turn positive radius
-            {'long_slip_outer_coefficients': [0.0322, -1.1858]},#this are for left turn positive radius
-            {'long_slip_inner_coefficients': [-0.0580, 0.2857]},#this are for left turn positive radius
+            {'side_slip_angle_coefficients_left': [ -943.2212, -136.2539 ,  -0.5131 ,  -4.8745]}, #this are for left turn positive radius
+            {'side_slip_angle_coefficients_right': [0.6378  ,  5.4888 , 408.3550,  116.5987]}, #this are for right turn negative radius
+            {'beta_slip_outer_coefficients_left': [xxx]},#this are for right turn negative radius
+            {'beta_slip_outer_coefficients_right': [ xxxx]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_left': [  xxx]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_right': [xxxx]},#this are for right turn negative radius
             {'consider_slippage': True},
         ],
         on_exit=launch.actions.Shutdown(),

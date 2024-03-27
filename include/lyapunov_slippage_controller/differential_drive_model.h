@@ -9,13 +9,14 @@
 class DifferentialDriveModel
 {
 private:
+    
+
+public:
     double wheel_radius;
     double wheel_distance;
     double linear_speed;
     double angular_speed;
-    double gearbox;
-
-public:
+    double gearbox; 
     DifferentialDriveModel(double wheel_radius, double wheel_distance, double gearbox);
 
     void setUnicycleSpeed(double lin_speed, double ang_speed);

@@ -60,7 +60,6 @@ private:
     double t_start;
 	double t_pose_init;
 	double alpha_dot_prev;
-	double alpha_dot;
 	double alpha_dot_f = 0.;
 	Eigen::Vector2d u_bar;
 	Eigen::Vector2d u;
@@ -74,12 +73,29 @@ private:
 	std::vector<double> i_outer_coeff;
 	std::vector<double> alpha_coeff;
 
+
+	std::vector<double> side_slip_angle_coefficients_left ;
+	std::vector<double> side_slip_angle_coefficients_right;
+	std::vector<double> beta_slip_outer_coefficients_left ;
+	std::vector<double> beta_slip_outer_coefficients_right;
+	std::vector<double> beta_slip_inner_coefficients_left ;
+	std::vector<double> beta_slip_inner_coefficients_right;
+
+
+
 	bool enable_pose_init;
 	bool enable_slippage;
 	double n_samples_pose_init;
 
 
-
+	//new imoplem
+	double alpha_f = 0.;
+	double alpha_f_old = 0.;
+	double alpha = 0.;
+	double alpha_dot =0.;
+	double slip_L = 0.;
+	double slip_R = 0.;
+	
 	
 
 	void timerCmdCallback()
@@ -131,7 +147,7 @@ private:
 		pub_unicycle_commands->publish(msg_unicycle_commands);
 
 		std_msgs::msg::Float64MultiArray msg_alpha;
-		msg_alpha.data.push_back(this->alpha_prev_1.data);
+		msg_alpha.data.push_back(this->alpha_f);
 		msg_alpha.data.push_back(this->alpha_dot);
 		pub_alpha->publish(msg_alpha);
     }
@@ -187,64 +203,120 @@ private:
 		}
     }
 
-	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
+	// /* It tracks a trajectory defined in terms of velocities. It has to set the current time 
+	// to extract the desired velocities and poses, then it computes the control with the standard
+	// controller and finally the effects of slippage are compensated by a transformer */
+    // Eigen::Vector2d trackTrajectorySlippage()
+    // {
+
+
+	// 	// Ctrl->setCurrentTime(getCurrentTime() - t_start);
+	// 	// u = Ctrl->run(this->pose);
+	// 	// if(code_verbosity_pub == DEBUG)
+	// 	// 	std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
+	// 	// // conversion block from unicycle to differential drive
+	// 	// Model->setUnicycleSpeed(u(0), u(1));
+	// 	// Eigen::Vector2d motor_vel;
+	// 	// motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
+	// 	// if(code_verbosity_pub == DEBUG)
+	// 	// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
+
+	// 	// // compute an estimation of the longitudinal and lateral slips
+	// 	Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data<);
+	// 	Eigen::Vector3d pose_bar = this->pose + pose_offset; 
+	
+	// 	Ctrl->setCurrentTime(getCurrentTime() - t_start);
+		
+	// 	u_bar = Ctrl->run(pose_bar);
+	
+	// 	// compute commands with side slip compensation
+	// 	u = convertskidSteering(u_bar);
+	// 	if(code_verbosity_pub == DEBUG)
+	// 	 	std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
+	// 		std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
+	// 	// conversion block from unicycle to differential drive
+	// 	Model->setUnicycleSpeed(u(0), u(1));
+	// 	double motor_vel_L = Model->getLeftMotorRotationalSpeed();
+	// 	double motor_vel_R = Model->getRightMotorRotationalSpeed();
+		
+	// 	// // compensate the longitudinal slip
+	// 	// // double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
+	// 	// // double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);	
+	// 	// //Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
+	// 	// //Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
+		
+	// 	// //TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
+	// 	Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
+	// 	Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
+
+	// 	// // estimate alpha, alpha_dot
+	// 	// //compute alpha based on slip compensated control input 
+	// 	// updateSlipVariables(u);
+	// 	// // TESTING 1: compute alpha based on desired control input
+	// 	// updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
+		
+		
+	// 	// if(code_verbosity_pub == DEBUG)
+	// 	// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
+
+	// 	return motor_vel;
+    // }
+
+
+/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the standard
 	controller and finally the effects of slippage are compensated by a transformer */
     Eigen::Vector2d trackTrajectorySlippage()
     {
+		Ctrl->setCurrentTime(getCurrentTime() - t_start);
+
+		//  estimate slippage params slip_L, slip_R,alpha, alpha_dot
+		//alpha 
+		double beta = 0.9;
+		this->alpha = computeSideSlipAngle(u);
+		this->alpha_dot_f = (1-beta)*this->alpha_dot_f + beta * this->alpha;
+		//alpha dot
+		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
+		this->alpha_dot =  (this->alpha_f  - alpha_f_old) / dt;
+		this->alpha_f_old = this->alpha_f;
 
 
-		// Ctrl->setCurrentTime(getCurrentTime() - t_start);
-		// u = Ctrl->run(this->pose);
-		// if(code_verbosity_pub == DEBUG)
-		// 	std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-		// // conversion block from unicycle to differential drive
-		// Model->setUnicycleSpeed(u(0), u(1));
-		// Eigen::Vector2d motor_vel;
-		// motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
-		// if(code_verbosity_pub == DEBUG)
-		// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
 
 		// // compute an estimation of the longitudinal and lateral slips
-		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data<);
-		Eigen::Vector3d pose_bar = this->pose + pose_offset; 
-	
-		Ctrl->setCurrentTime(getCurrentTime() - t_start);
+		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_f);
+		Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
 		
+		//make theta+alpha track theta_des
 		u_bar = Ctrl->run(pose_bar);
 	
 		// compute commands with side slip compensation
-		u = convertskidSteering(u_bar);
+		u(0) = u_bar(0) * cos(this->alpha_f);
+		u(1) = u_bar(1) - this->alpha_dot;
+
+
+		// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
+		double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+	    double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+
+		//compensate the longitudinal slip (this accounts for the fact thayt w_act_wheel is different from w_opt)
+		motor_vel_comp_L ,motor_vel_comp_R  compoteLongSlip (motor_vel_L, motor_vel_R, u)
+		// double motor_vel_comp_L = motor_vel_L / (1-this->slip_L);
+		// double motor_vel_comp_R = motor_vel_R / (1-this->slip_R);	
+
+		
 		if(code_verbosity_pub == DEBUG)
-		 	std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-			std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-		// conversion block from unicycle to differential drive
-		Model->setUnicycleSpeed(u(0), u(1));
-		double motor_vel_L = Model->getLeftMotorRotationalSpeed();
-		double motor_vel_R = Model->getRightMotorRotationalSpeed();
-		
-		// // compensate the longitudinal slip
-		// // double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
-		// // double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);	
-		// //Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
-		// //Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
-		
-		// //TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
-		Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
-		Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
+			std::cout<<"---------------------------------------------------------- "<< std::endl;
+		 	std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
+			std::cout<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
+			std::cout<<"alpha:  " << this->alpha << " alpha_dot " << this->alpha_dot << std::endl;	
+		    std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
+		 	std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_comp_L << " RIGHT " << motor_vel_comp_R << std::endl;
 
-		// // estimate alpha, alpha_dot
-		// //compute alpha based on slip compensated control input 
-		// updateSlipVariables(u);
-		// // TESTING 1: compute alpha based on desired control input
-		// updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
-		
-		
-		// if(code_verbosity_pub == DEBUG)
-		// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
-
+		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
+		//Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
 		return motor_vel;
     }
+
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the standard
@@ -356,7 +428,10 @@ private:
 		}
 	}
 
+//TODO
+//double compensateLongSlippage(const Eigen::Vector2d& u) const
 
+//TODO
 	double computeSideSlipAngle(const Eigen::Vector2d& u) const
 	{
 		if(abs(u(0)) <= SIDE_SLIP_EPSILON || abs(u(1)) <= SIDE_SLIP_EPSILON)
@@ -368,34 +443,42 @@ private:
 			return 0.0;
 		}
 		double R = computeTurningRadius(u(0), u(1));
-		// double a0,a1,a2;
-		// a0 = this->alpha_coeff.at(0);
-		// a1 = this->alpha_coeff.at(1);
-		// a2 = this->alpha_coeff.at(2);
-        // // {'side_slip_angle_coefficients': [-0.0001, -0.0014, 6.6035]},
+	   //TODO left /right
+	
 
-		// // model side slip as a plyinomial in the curvature
-		// //TODO this can have division by zero! implement it better
-		// double K = 1/(R+0.001);
-		// double alpha = -0.0610487 + (-0.0185)*K +  (-0.0014)*(K*K); // simplified notation
-		// // double alpha = a0 + a1*pow((a2 + 1/R), 2); // original
-		// // double alpha = -0.0005937 * 1/(R*R);
-		double a0,a1,a2,a3;
-		a0 = this->alpha_coeff.at(0);
-		a1 = this->alpha_coeff.at(1);
-		a2 = this->alpha_coeff.at(2);
-		a3 = this->alpha_coeff.at(3);
+		
 
-		double alpha = a0*exp(a1*R) + a2*exp(a3*R);
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "R=" << R << std::endl;
+		}
+		
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout << "Side Slip coefficients [" << a0 << ", "<< a1<< ", " << a2 << ", "<< a3 <<"]" << std::endl;
+		}
+		double alpha = 0;
+
 		if(R > 0.0) // turning left
 		{
-			return alpha;
+			// 	double a0,a1,a2,a3;
+			// a0 = this->alpha_coeff.at(0);
+			// a1 = this->alpha_coeff.at(1);
+			// a2 = this->alpha_coeff.at(2);
+			// a3 = this->alpha_coeff.at(3);
+			double alpha = a0*exp(a1*R) + a2*exp(a3*R);
+			
 		}
 		else
 		{
-			return -alpha;
-		}
+		// 	r	double a0,a1,a2,a3;
+		// a0 = this->alpha_coeff.at(0);
+		// a1 = this->alpha_coeff.at(1);
+		// a2 = this->alpha_coeff.at(2);
+		// a3 = this->alpha_coeff.at(3);
 		
+		}
+		return alpha
 	}
 	double computeLeftWheelLongSlip(const Eigen::Vector2d& u) const
 	{
@@ -610,6 +693,15 @@ public:
 		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
+
+
+		declare_parameter("side_slip_angle_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("side_slip_angle_coefficients_right", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("beta_slip_outer_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("beta_slip_outer_coefficients_right", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("beta_slip_inner_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
+		declare_parameter("beta_slip_inner_coefficients_right", std::vector<double>({0.0,0.0,0.0}));
+
 		declare_parameter("derivative_filter_time_constant_s", 0.01); // for the alpha dot calculation
 
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
@@ -640,6 +732,15 @@ public:
 		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
 		i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
 		alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
+
+		side_slip_angle_coefficients_left = this->get_parameter("side_slip_angle_coefficients_left").as_double_array();
+		side_slip_angle_coefficients_right = this->get_parameter("side_slip_angle_coefficients_right").as_double_array();
+		beta_slip_outer_coefficients_left = this->get_parameter("beta_slip_outer_coefficients_left").as_double_array();
+		beta_slip_outer_coefficients_right = this->get_parameter("beta_slip_outer_coefficients_right").as_double_array();
+		beta_slip_inner_coefficients_left = this->get_parameter("beta_slip_inner_coefficients_left").as_double_array();
+		beta_slip_inner_coefficients_right = this->get_parameter("beta_slip_inner_coefficients_right").as_double_array();
+
+
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
 		
@@ -746,7 +847,7 @@ public:
 
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "Initialization of slip variables" << std::endl;
-			initSlipVariables();
+			//initSlipVariables();
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "INIT COMPLETED with tstart: " << this->t_start  <<std::endl;
 			return;
