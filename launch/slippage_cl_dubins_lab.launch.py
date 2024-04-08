@@ -68,10 +68,10 @@ def generate_launch_description():
             # {'long_slip_inner_coefficients': [-0.0591, -0.2988]},
             {'side_slip_angle_coefficients_left': [ -943.2212, -136.2539 ,  -0.5131 ,  -4.8745]}, #this are for left turn positive radius
             {'side_slip_angle_coefficients_right': [0.6378  ,  5.4888 , 408.3550,  116.5987]}, #this are for right turn negative radius
-            {'beta_slip_outer_coefficients_left': [xxx]},#this are for right turn negative radius
-            {'beta_slip_outer_coefficients_right': [ xxxx]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_left': [  xxx]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_right': [xxxx]},#this are for right turn negative radius
+            {'beta_slip_outer_coefficients_left': [0.1298,    2.4071]},#this are for right turn negative radius
+            {'beta_slip_outer_coefficients_right': [  0.0985,   -1.9304]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_left': [  0.1210,   -5.5709]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_right': [0.1172 ,   5.8115 ]},#this are for right turn negative radius
             {'consider_slippage': True},
         ],
         on_exit=launch.actions.Shutdown(),

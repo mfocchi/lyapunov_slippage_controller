@@ -59,23 +59,20 @@ private:
     Eigen::Vector3d pose;
     double t_start;
 	double t_pose_init;
-	double alpha_dot_prev;
-	double alpha_dot_f = 0.;
+
 	Eigen::Vector2d u_bar;
 	Eigen::Vector2d u;
 
-	Measurement1D alpha_prev_1; // store alpha value at time dt*(k-2)
-	Measurement1D alpha_prev_2; // store alpha value at time dt*(k-1)
-	double i_L_prev; // store i_L value at time dt*(k-1)
-	double i_R_prev; // store i_R value at time dt*(k-1)
     std::vector<double> origin_RF;
-	std::vector<double> i_inner_coeff;
-	std::vector<double> i_outer_coeff;
-	std::vector<double> alpha_coeff;
+	//OLD
+	// std::vector<double> i_inner_coeff;
+	// std::vector<double> i_outer_coeff;
+	// std::vector<double> alpha_coeff;
 
-
+//side slip
 	std::vector<double> side_slip_angle_coefficients_left ;
 	std::vector<double> side_slip_angle_coefficients_right;
+	//longitudinal slip coefficients
 	std::vector<double> beta_slip_outer_coefficients_left ;
 	std::vector<double> beta_slip_outer_coefficients_right;
 	std::vector<double> beta_slip_inner_coefficients_left ;
@@ -93,10 +90,7 @@ private:
 	double alpha_f_old = 0.;
 	double alpha = 0.;
 	double alpha_dot =0.;
-	double slip_L = 0.;
-	double slip_R = 0.;
-	
-	
+
 
 	void timerCmdCallback()
     {
@@ -203,6 +197,8 @@ private:
 		}
     }
 
+
+	//OLD IMPLEMENTATION
 	// /* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	// to extract the desired velocities and poses, then it computes the control with the standard
 	// controller and finally the effects of slippage are compensated by a transformer */
@@ -427,231 +423,123 @@ private:
 			printErrorCode(code);
 		}
 	}
-
-//TODO
-//double compensateLongSlippage(const Eigen::Vector2d& u) const
-
-//TODO
-	double computeSideSlipAngle(const Eigen::Vector2d& u) const
-	{
-		if(abs(u(0)) <= SIDE_SLIP_EPSILON || abs(u(1)) <= SIDE_SLIP_EPSILON)
-		{
-			/* In this situation the vehicle is going straight
-			*  or turning on the spot. In both cases there is no
-			*  side slip angle
-			*/
-			return 0.0;
-		}
-		double R = computeTurningRadius(u(0), u(1));
-	   //TODO left /right
 	
 
-		
+	double computeSideSlipAngle(const Eigen::Vector2d& u) const
+	{
+	
+		double R = computeTurningRadius(u(0), u(1));
+			
 
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout << "R=" << R << std::endl;
 		}
 		
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "Side Slip coefficients [" << a0 << ", "<< a1<< ", " << a2 << ", "<< a3 <<"]" << std::endl;
-		}
-		double alpha = 0;
-
+		double a0,a1,a2,a3;
+		double alpha;
 		if(R > 0.0) // turning left
 		{
-			// 	double a0,a1,a2,a3;
-			// a0 = this->alpha_coeff.at(0);
-			// a1 = this->alpha_coeff.at(1);
-			// a2 = this->alpha_coeff.at(2);
-			// a3 = this->alpha_coeff.at(3);
-			double alpha = a0*exp(a1*R) + a2*exp(a3*R);
 			
+			a0 = this->side_slip_angle_coefficients_left.at(0);
+			a1 = this->side_slip_angle_coefficients_left.at(1);
+			a2 = this->side_slip_angle_coefficients_left.at(2);
+			a3 = this->side_slip_angle_coefficients_left.at(3);		
+			alpha = a0*exp(a1*R) + a2*exp(a3*R);
+			if (alpha < -M_PI/2)
+				alpha = -M_PI/2;
 		}
-		else
+		else // turning right
 		{
-		// 	r	double a0,a1,a2,a3;
-		// a0 = this->alpha_coeff.at(0);
-		// a1 = this->alpha_coeff.at(1);
-		// a2 = this->alpha_coeff.at(2);
-		// a3 = this->alpha_coeff.at(3);
-		
+		    a0 = this->side_slip_angle_coefficients_right.at(0);
+			a1 = this->side_slip_angle_coefficients_right.at(1);
+			a2 = this->side_slip_angle_coefficients_right.at(2);
+			a3 = this->side_slip_angle_coefficients_right.at(3);	
+			alpha = a0*exp(a1*R) + a2*exp(a3*R);
+			if (alpha > M_PI/2)
+				alpha = M_PI/2;	
 		}
-		return alpha
+		return alpha;
 	}
-	double computeLeftWheelLongSlip(const Eigen::Vector2d& u) const
+	
+	Eigen::Vector2d computeLongSlipCompensation(const double ideal_wheel_L,const double ideal_wheel_R, const Eigen::Vector2d& u) const
 	{
-		if(abs(u(1)) <= SIDE_SLIP_EPSILON)
-		{
-			/* In this situation the vehicle is going straight.
-			* there is no longitudinal slip in this case
-			*/
-			return 0.0;
-		}
-		double a0, a1;
-		double R = computeTurningRadius(u(0), u(1));
-		double long_slip;
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "R=" << R << std::endl;
-		}
+	
+	    double R = computeTurningRadius(u(0), u(1));
+		// compute track velocity from encoder
+		double  v_enc_l, v_enc_r;
+		v_enc_l = Model->wheel_radius/Model->gearbox*ideal_wheel_L;
+        v_enc_r = Model->wheel_radius/Model->gearbox*ideal_wheel_R;
+
+		// estimate beta_inner, beta_outer from turning radius
+		double a0, a1, beta_inner, beta_outer;
 		if(R >= 0.0) // turning left, left wheel is inner there is discontinuity
 		{
-			
-			a0 = this->i_inner_coeff.at(0);
-			a1 = this->i_inner_coeff.at(1);
-			long_slip = a0/((0.319-R))+a1*R;
+			a0 = this->beta_slip_inner_coefficients_left.at(0);
+			a1 = this->beta_slip_inner_coefficients_left.at(1);
+			beta_inner = a0*exp(a1*R);
+			v_enc_l-=beta_inner;
+
+			a0 = this->beta_slip_outer_coefficients_left.at(0);
+			a1 = this->beta_slip_outer_coefficients_left.at(1);
+			beta_outer = a0*exp(a1*R);
+			v_enc_r+=beta_outer;
 		}
 		else // turning right , left wheel is outer
 		{
-			a0 = this->i_outer_coeff.at(0);
-			a1 = this->i_outer_coeff.at(1);
-			long_slip = a0*(-R)+a1;
+			a0 = this->beta_slip_inner_coefficients_right.at(0);
+			a1 = this->beta_slip_inner_coefficients_right.at(1);
+			beta_inner = a0*exp(a1*R);
+			v_enc_r-=beta_inner;
+
+			a0 = this->beta_slip_outer_coefficients_right.at(0);
+			a1 = this->beta_slip_outer_coefficients_right.at(1);
+			beta_outer = a0*exp(a1*R);
+			v_enc_l+=beta_outer;
 		}
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
-		}
-		return long_slip; //computeLongSlip(R, a0, a1);
+		Eigen::Vector2d wheel_speed_comp;
+		wheel_speed_comp(0) = Model->gearbox / Model->wheel_radius* v_enc_l;
+		wheel_speed_comp(1) = Model->gearbox / Model->wheel_radius* v_enc_r;
+
+		return wheel_speed_comp;
 	}
 
-	double computeRightWheelLongSlip(const Eigen::Vector2d& u) const
-	{
-		if(abs(u(1)) <= SIDE_SLIP_EPSILON)
-		{
-			/* In this situation the vehicle is going straight.
-			* there is no longitudinal slip in this case
-			*/
-			return 0.0;
-		}
-		double a0, a1;
-		double R = computeTurningRadius(u(0), u(1));
-		double long_slip;
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "R=" << R << std::endl;
-		}
-		if(R < 0.0) // turning right, right wheel is inner
-		{
-			a0 = this->i_inner_coeff.at(0);
-			a1 = this->i_inner_coeff.at(1);
-			long_slip = -a0/((-0.317-R))-a1*R;
-		}
-		else // turning left , right wheel is outer
-		{
-			a0 = this->i_outer_coeff.at(0);
-			a1 = this->i_outer_coeff.at(1);
-			long_slip = a0*(R)+a1;
-		}
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "Slip coefficients [" << a0 << ", "<< a1 << "]" << std::endl;
-		}
-		return long_slip; //computeLongSlip(R, a0, a1);
-	}
+	//OLD
+	// double computeLongSlip(double R, double a0, double a1) const
+	// {
+	// 	double slip;
+	// 	if(abs(a1 + R) <= LONG_SLIP_EPSILON)
+	// 	{
+	// 		// close to singularity
+	// 		if(code_verbosity_pub == DEBUG)
+	// 		{
+	// 			std::cout << "Long Slip: SINGULARITY" << std::endl;
+	// 		}
+	// 		if(abs(a1 + R) * a0 >= 0.0)
+	// 		{
+	// 			slip = MAX_LONG_SLIP;
+	// 		}
+	// 		else
+	// 		{
+	// 			slip = MIN_LONG_SLIP;
+	// 		}
+	// 	}
+	// 	else
+	// 	{
+	// 		slip = a0 / (a1 + R);
+	// 		if(slip > MAX_LONG_SLIP)
+	// 		{
+	// 			slip = MAX_LONG_SLIP;
+	// 		}
+	// 		else if(slip < MIN_LONG_SLIP)
+	// 		{
+	// 			slip = MIN_LONG_SLIP;
+	// 		}
+	// 	}
+	// 	return slip;
+	// }
 
-	double computeLongSlip(double R, double a0, double a1) const
-	{
-		double slip;
-		if(abs(a1 + R) <= LONG_SLIP_EPSILON)
-		{
-			// close to singularity
-			if(code_verbosity_pub == DEBUG)
-			{
-				std::cout << "Long Slip: SINGULARITY" << std::endl;
-			}
-			if(abs(a1 + R) * a0 >= 0.0)
-			{
-				slip = MAX_LONG_SLIP;
-			}
-			else
-			{
-				slip = MIN_LONG_SLIP;
-			}
-		}
-		else
-		{
-			slip = a0 / (a1 + R);
-			if(slip > MAX_LONG_SLIP)
-			{
-				slip = MAX_LONG_SLIP;
-			}
-			else if(slip < MIN_LONG_SLIP)
-			{
-				slip = MIN_LONG_SLIP;
-			}
-		}
-		return slip;
-	}
-
-	/*
-	Compute the derivative of alpha (side slip angle) with a derivative filter implemented using
-	Backward Euler 
-	*/
-	double computeSideSlipDerivative() 
-	{
-		double dt = this->alpha_prev_1.time - this->alpha_prev_2.time;
-		if(dt == 0.0)
-			throw SINGULARITY_DT_ALPHA_DOT;
-		if(dt <= 0.0)
-			throw NEGATIVE_DT_ALPHA_DOT;
-		double beta = 0.005;
-		double alpha_dot =  (alpha_prev_1.data - alpha_prev_2.data) / dt;
-		alpha_dot_f = (1-beta)*alpha_dot_f + beta * alpha_dot;
-		return alpha_dot_f;
-	}
-
-	/*
-	Updates all variables related to slippage.
-	IMPORTANT: order matters!
-	Note that all estimates are computed using the controller output and are used the next cycle, thus
-	the have a delay of one step
-	*/
-	void updateSlipVariables(const Eigen::Vector2d& u)
-	{
-		this->i_L_prev = computeLeftWheelLongSlip(u);
-		this->i_R_prev = computeRightWheelLongSlip(u);
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "i_L k-1=" << i_L_prev << " i_R k-1=" << i_R_prev << std::endl;
-		}
-		this->alpha_prev_2.time = this->alpha_prev_1.time;
-		this->alpha_prev_2.data = this->alpha_prev_1.data;
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "alpha k-2=" << this->alpha_prev_2.data << " [rad] taken at time=" << this->alpha_prev_2.time <<" [s]" << std::endl;
-		}
-		this->alpha_prev_1.time = getCurrentTime() - t_start;
-		this->alpha_prev_1.data = computeSideSlipAngle(u);
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "alpha k-1=" << this->alpha_prev_1.data << " [rad] taken at time=" << this->alpha_prev_1.time <<" [s]" << std::endl;
-		}
-		this->alpha_dot_prev = this->alpha_dot;
-		this->alpha_dot	= computeSideSlipDerivative();
-		//TESTING 3: set alpha_dot = 0
-		this->alpha_dot	= 0.;
-
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "alpha dot k-1=" << this->alpha_dot << " [rad/s]"<< std::endl;
-			std::cout << "alpha dot k-2=" << this->alpha_dot_prev << " [rad/s]"<< std::endl;
-		}
-	}
-
-	Eigen::Vector2d convertskidSteering(const Eigen::Vector2d& u_bar)
-	{
-		/* Convert control inputs to compensate for a skid-steering 
-		*  vehicle
-		*/
-		double v_conv = u_bar(0) * cos(this->alpha_prev_1.data);
-		double omega_conv = u_bar(1) - this->alpha_dot;
-		Eigen::Vector2d u_out;
-		u_out << v_conv, omega_conv;
-		return u_out;
-	}
-
+	
 	void initSlipVariables()
 	{
 		if(this->enable_slippage == false)
@@ -661,17 +549,11 @@ private:
 		Eigen::Vector2d u0 = Ctrl->getControlInputDesiredOnTime(0.0);
 		int dt = this->get_parameter("pub_dt_ms").as_int();
 		
-		this->alpha_dot_prev = 0.0;
+	
 		this->alpha_dot = 0.0;
 		// init side slip with expected value from desired velocities
-		double alpha = computeSideSlipAngle(u0);
+		this->alpha_f_old = computeSideSlipAngle(u0);
 
-		this->alpha_prev_1.data = alpha; // store alpha value at time dt*(k-1)
-		this->alpha_prev_1.time = 0.0; // store alpha value at time dt*(k-1)
-		this->alpha_prev_2.data = alpha; // store alpha value at time dt*(k-2)
-		this->alpha_prev_2.time = -dt / 1000.0; // store alpha value at time dt*(k-2)
-		this->i_L_prev = 0.0; // store i_L value at time dt*(k-1)
-		this->i_R_prev = 0.0; // store i_R value at time dt*(k-1)
 	}
 
 
@@ -690,9 +572,10 @@ public:
 		declare_parameter("automatic_pose_init", false);
 		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
 
-		declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
-		declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
-		declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		//OLD
+		// declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		// declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
+		// declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
 
 
 		declare_parameter("side_slip_angle_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
@@ -729,18 +612,19 @@ public:
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
 		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
-		i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
-		i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
-		alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
+		//OLD
+		// i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
+		// i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
+		// alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
 
+		//side slip
 		side_slip_angle_coefficients_left = this->get_parameter("side_slip_angle_coefficients_left").as_double_array();
 		side_slip_angle_coefficients_right = this->get_parameter("side_slip_angle_coefficients_right").as_double_array();
+		//longitudinal slip
 		beta_slip_outer_coefficients_left = this->get_parameter("beta_slip_outer_coefficients_left").as_double_array();
 		beta_slip_outer_coefficients_right = this->get_parameter("beta_slip_outer_coefficients_right").as_double_array();
 		beta_slip_inner_coefficients_left = this->get_parameter("beta_slip_inner_coefficients_left").as_double_array();
 		beta_slip_inner_coefficients_right = this->get_parameter("beta_slip_inner_coefficients_right").as_double_array();
-
-
 
 		origin_RF = this->get_parameter("origin_RF").as_double_array();
 		
