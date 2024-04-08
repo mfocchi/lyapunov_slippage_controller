@@ -265,57 +265,70 @@ private:
     Eigen::Vector2d trackTrajectorySlippage()
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
-
-		//  estimate slippage params slip_L, slip_R,alpha, alpha_dot
-		//alpha 
-		double beta = 0.9;
-		this->alpha = computeSideSlipAngle(u);
-		this->alpha_dot_f = (1-beta)*this->alpha_dot_f + beta * this->alpha;
-		//alpha dot
-		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
-		this->alpha_dot =  (this->alpha_f  - alpha_f_old) / dt;
-		this->alpha_f_old = this->alpha_f;
-
-
-
+		std::cout<<"---------------------------------------------------------- "<< std::endl;
 		// // compute an estimation of the longitudinal and lateral slips
-		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_f);
+		Eigen::Vector3d pose_offset(0.0, 0.0, sign(alpha)*this->alpha_f);
 		Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
 		
 		//make theta+alpha track theta_des
 		u_bar = Ctrl->run(pose_bar);
 	
 		// compute commands with side slip compensation
-		u(0) = u_bar(0) * cos(this->alpha_f);
-		u(1) = u_bar(1) - this->alpha_dot;
+		u(0) = u_bar(0) * cos(sign(alpha)*this->alpha_f);
 
+		if ((getCurrentTime() - t_start)< 0.05)
+		{			
+			std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
+			u(1) = u_bar(1);
+		}
+		else{
+			
+			u(1) = u_bar(1) -this->alpha_dot;
+		}
 
+			
+		if(code_verbosity_pub == DEBUG)
+		{
+			std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
+			std::cout<<RED<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << RESET<<std::endl;
+		}
+
+		//compute ideal wheel speed
 		// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
 		double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
 	    double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
 
-		//compensate the longitudinal slip (this accounts for the fact thayt w_act_wheel is different from w_opt)
-		motor_vel_comp_L ,motor_vel_comp_R  compoteLongSlip (motor_vel_L, motor_vel_R, u)
-		// double motor_vel_comp_L = motor_vel_L / (1-this->slip_L);
-		// double motor_vel_comp_R = motor_vel_R / (1-this->slip_R);	
 
-		
+        //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
+		// the have a delay of one step
+
+		//alpha 
+		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
+		double filter_gain = dt/(dt+0.005);
+		this->alpha = computeSideSlipAngle(u_bar);
+		//filter always positive
+		this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
+		//alpha dot	
+		this->alpha_dot =  sign(alpha) * (abs(this->alpha_f)  - abs(alpha_f_old)) / dt;
+		this->alpha_f_old = this->alpha_f;
+
+		Eigen::Vector2d motor_vel_compensated, motor_vel;
+		motor_vel << motor_vel_L, motor_vel_R; //for debug
+		//compute compensated wheel speed after accounting longitudinal slippage
+		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u_bar);
+				
 		if(code_verbosity_pub == DEBUG)
-			std::cout<<"---------------------------------------------------------- "<< std::endl;
-		 	std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-			std::cout<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-			std::cout<<"alpha:  " << this->alpha << " alpha_dot " << this->alpha_dot << std::endl;	
-		    std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
-		 	std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_comp_L << " RIGHT " << motor_vel_comp_R << std::endl;
-
-		Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
-		//Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
+		{
+			std::cout<<"alpha:  " << this->alpha << " alpha_f:  " << this->alpha_f << " alpha_dot " << this->alpha_dot << std::endl;	
+			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
+			std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_compensated(0) << " RIGHT " << motor_vel_compensated(1) << std::endl;
+		}
 		return motor_vel;
     }
 
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
-	to extract the desired velocities and poses, then it computes the control with the standard
+	to extract the desired velocities and poses, then it computes the control with the standard OLyapunov Unicycle
 	controller*/
     Eigen::Vector2d trackTrajectoryClassic()
     {
