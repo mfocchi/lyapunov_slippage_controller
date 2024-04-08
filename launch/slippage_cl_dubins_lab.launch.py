@@ -21,10 +21,11 @@ def generate_launch_description():
     path_gen_dt = 0.005
     omega_vec = extract_settings_from_dubins(omega_dubins_vec, times_dubins_vec, path_gen_dt)
     
+    #override with fixed vel 
     n = len(omega_vec)
-    n = 2000
+    n = 4000
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
-    omega_vec     = np.linspace(0.5,0.5, n).tolist()
+    omega_vec     = np.linspace(0.3,0.3, n).tolist()
     # stop execution of control inputs
     v_vec.append(0.0)
     v_vec.append(0.0)
