@@ -201,7 +201,7 @@ double computeTurningRadius(double v, double omega)
         return 0.0;
     else
     {
-        return v / omega;
+        return v / (omega+0.00001);
     }
 }
 
