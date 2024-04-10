@@ -113,7 +113,7 @@ def generate_launch_description():
     )
 
     robot_node = Node(
-        package="maxxii_interface",
+        package="ros2_maxxii",
         executable="maxxii_node",
         name="maxxii_node",
         output='screen'

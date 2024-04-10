@@ -79,7 +79,7 @@ def generate_launch_description():
         on_exit=launch.actions.Shutdown(),
     )
     robot_node = Node(
-        package="maxxii_interface",
+        package="ros2_maxxii", #old driver maxxii_interface
         executable="maxxii_node",
         name="maxxii_node",
         output='screen'
