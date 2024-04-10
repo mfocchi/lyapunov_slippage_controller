@@ -641,9 +641,6 @@ public:
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
 		
 	
-
-		
-		
 	
 	
 	}
@@ -652,7 +649,7 @@ public:
 	{
 		return planner_type;
 	}
-	
+
 	void startController(void)
 	{
 
@@ -783,6 +780,7 @@ public:
 
 int main(int argc, char ** argv)
 {
+	bool start_service = true;
 	rclcpp::init(argc, argv);
 	printf("Lyapunov Controller node start up\n");
 
@@ -790,59 +788,57 @@ int main(int argc, char ** argv)
 
 	auto client = Ctrl->create_client<optim_interfaces::srv::Optim>("/optim");
 
-    while (!client->wait_for_service(std::chrono::seconds(1))) {
+
+    while (!client->wait_for_service(std::chrono::seconds(2))) {
         if (!rclcpp::ok()) {
             RCLCPP_ERROR(Ctrl->get_logger(), "Interrupted while waiting for the service. Exiting.");
             return 1;
         }
-        RCLCPP_INFO(Ctrl->get_logger(), "Service not available, retrying...");
+        RCLCPP_ERROR(Ctrl->get_logger(), "Optim/dubins Service not available, USING DEFAULT omega and v values...");
+		Ctrl->startController();
+		start_service = false;
+		break;
     }
 
-    auto request = std::make_shared<optim_interfaces::srv::Optim::Request>();
-    
-    request->x0 = 0.0;
-    request->y0 = 0.0;
-    request->theta0 = -0.0;
-    request->xf = -0.4758;
-    request->yf = -1.1238;
-    request->thetaf = 0.9638;
-    request->plan_type = Ctrl->getPlannerType();
+	if (start_service)
+	{
+		auto request = std::make_shared<optim_interfaces::srv::Optim::Request>();
+		
+		request->x0 = 0.0;
+		request->y0 = 0.0;
+		request->theta0 = -0.0;
+		request->xf = -0.4758;
+		request->yf = -1.1238;
+		request->thetaf = 0.9638;
+		request->plan_type = Ctrl->getPlannerType();
 
-    while (!client->wait_for_service(std::chrono::seconds(1))) {
-        if (!rclcpp::ok()) {
-            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
-            return 0;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
-    }
+		
+		auto result = client->async_send_request(request);
 
-    auto result = client->async_send_request(request);
+		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
+		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<Ctrl->getPlannerType()<<RESET<<<<std::endl;
+		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
 
-std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
+		if (rclcpp::spin_until_future_complete(Ctrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
+			auto response = result.get();
+			if(response){
+				// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
+				for(size_t i = 0; i < response->des_x.size(); ++i){
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Step %zu", i);
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "X[%zu]: %.2f", i, response->des_x[i]);
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Y[%zu]: %.2f", i, response->des_y[i]);
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
+				}
+				//this starts the timers and so the whole loop
+				Ctrl->startController();
 
-	std::cout<<BLUE<<"STARTING SERVICE CALL FOR OPTIM"<<RESET<<std::endl;
-    std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
-
-    if (rclcpp::spin_until_future_complete(Ctrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
-        auto response = result.get();
-        if(response){
-			// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
-            for(size_t i = 0; i < response->des_x.size(); ++i){
-                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Step %zu", i);
-                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "X[%zu]: %.2f", i, response->des_x[i]);
-                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Y[%zu]: %.2f", i, response->des_y[i]);
-                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
-            }
-			//this starts the timers and so the whole loop
-			Ctrl->startController();
-
-        } else {
-                RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
-        }
-    } else {
-        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service /optim");
-    }
-
+			} else {
+					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
+			}
+		} else {
+			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service /optim");
+		}
+	}
 
 	rclcpp::spin(Ctrl);	
 	
