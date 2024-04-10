@@ -24,6 +24,9 @@ find_package(sensor_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(optim_interfaces REQUIRED) 
+
+
 
 install(DIRECTORY
   launch
@@ -37,6 +40,12 @@ add_library(motionModels include/${PROJECT_NAME}/motionModels.cpp)
 add_library(generalPurpose include/${PROJECT_NAME}/generalPurpose.cpp)
 add_library(coppeliaSimNode  include/${PROJECT_NAME}/coppeliaSimNode.cpp)
 add_library(differential_drive_model  include/${PROJECT_NAME}/differential_drive_model.cpp)
+
+
+
+
+
+
 add_executable(differential_drive_ol_node src/differential_drive_ol_node.cpp)
 add_executable(slippage_controller_node src/slippage_controller_node.cpp)
 add_executable(feedbackTester src/feedbackTester.cpp)
@@ -86,7 +95,9 @@ ament_target_dependencies(slippage_controller_node
   sensor_msgs
   std_msgs
   tf2
-  tf2_ros)
+  tf2_ros
+  optim_interfaces #this contains the header of the generated custom service call optim
+  )
 
 ament_target_dependencies(feedbackTester 
   Eigen3 
@@ -107,6 +118,21 @@ install(TARGETS
   feedbackTester
   DESTINATION lib/${PROJECT_NAME}
   )
+
+
+#test for service call
+add_executable(client_service_call_optimizer
+  src/test_service_call_optimizer.cpp)
+
+ament_target_dependencies(client_service_call_optimizer
+  rclcpp
+  optim_interfaces
+)
+
+install(TARGETS  
+client_service_call_optimizer
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 
 ament_package()

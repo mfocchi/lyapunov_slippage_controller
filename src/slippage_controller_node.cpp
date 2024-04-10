@@ -19,6 +19,7 @@
 #include "lyapunov_slippage_controller/coppeliaSimNode.h"
 #include "lyapunov_slippage_controller/differential_drive_model.h"
 #include "lyapunov_slippage_controller/error_codes.h"
+#include "optim_interfaces/srv/optim.hpp" //custom service call
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
@@ -29,6 +30,7 @@
 
 #define RESET   "\033[0m"
 #define RED     "\033[31m"      /* Red */
+#define BLUE     "\033[34m"      /* Blue */
 #define prt(x) std::cout << RED << #x " = \n" << x << "\n" << RESET<< std::endl;
 #define prt_vec(x) for( int i = 0; i < x.size(); i++) {std::cout << x[i] << " \n";};
 
@@ -64,12 +66,8 @@ private:
 	Eigen::Vector2d u;
 
     std::vector<double> origin_RF;
-	//OLD
-	// std::vector<double> i_inner_coeff;
-	// std::vector<double> i_outer_coeff;
-	// std::vector<double> alpha_coeff;
 
-//side slip
+	//side slip
 	std::vector<double> side_slip_angle_coefficients_left ;
 	std::vector<double> side_slip_angle_coefficients_right;
 	//longitudinal slip coefficients
@@ -83,6 +81,7 @@ private:
 	bool enable_pose_init;
 	bool enable_slippage;
 	double n_samples_pose_init;
+	std::string planner_type;
 
 
 	//new imoplem
@@ -90,6 +89,7 @@ private:
 	double alpha_f_old = 0.;
 	double alpha = 0.;
 	double alpha_dot =0.;
+
 
 
 	void timerCmdCallback()
@@ -612,6 +612,7 @@ public:
 		declare_parameter("copy_trajectory", false); 
 		// set it to false for classic differential drive model, true for skid-steering control (requires slip models)
 		declare_parameter("consider_slippage", true); 
+		declare_parameter("planner_type", "optim"); 
 				
 		double r = this->get_parameter("sprocket_radius_m").as_double();
 		double gear_ratio = this->get_parameter("gearbox_ratio").as_double();
@@ -619,16 +620,11 @@ public:
 		double Kp = this->get_parameter("Kp").as_double();
 		double Ktheta = this->get_parameter("Ktheta").as_double();
 		double dt = this->get_parameter("dt").as_double();
-		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
+		
 		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
 		this->enable_slippage = this->get_parameter("consider_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
-		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
-
-		//OLD
-		// i_inner_coeff = this->get_parameter("long_slip_inner_coefficients").as_double_array();
-		// i_outer_coeff = this->get_parameter("long_slip_outer_coefficients").as_double_array();
-		// alpha_coeff   = this->get_parameter("side_slip_angle_coefficients").as_double_array();
+		this->planner_type = this->get_parameter("planner_type").as_string();
 
 		//side slip
 		side_slip_angle_coefficients_left = this->get_parameter("side_slip_angle_coefficients_left").as_double_array();
@@ -644,6 +640,25 @@ public:
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
 		
+	
+
+		
+		
+	
+	
+	}
+    
+	std::string getPlannerType()
+	{
+		return planner_type;
+	}
+	
+	void startController(void)
+	{
+
+		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
+		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
+
 		n_samples_pose_init = 0.0;
 		if(enable_pose_init)
 		{
@@ -664,8 +679,7 @@ public:
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "COMPLETED" << std::endl;
 		}
-		
-		
+	
 
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
@@ -678,15 +692,18 @@ public:
 		pub_slippage_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/slippage_commands", qos_ctrl);
 		pub_unicycle_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/unicycle_commands", qos_ctrl);
 		pub_alpha = this->create_publisher<std_msgs::msg::Float64MultiArray>("/alpha_alpha_dot", qos_ctrl);
-		
-		
+
 		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-			"/optitrack/pose", 
-			qos_optitrack, 
-			std::bind(&SlippageControllerNode::poseCallback, this, std::placeholders::_1));
+		"/optitrack/pose", 
+		qos_optitrack, 
+		std::bind(&SlippageControllerNode::poseCallback, this, std::placeholders::_1));
+
+
+
 		timer_cmd = this->create_wall_timer(
 			std::chrono::milliseconds(pub_dt), 
 			std::bind(&SlippageControllerNode::timerCmdCallback, this));
+		
 		if(this->isCoppeliaSimEnabled())
 		{
 			this->enableSyncWithCoppeliaSim();
@@ -695,8 +712,10 @@ public:
 		}
 		
 		t_start = getCurrentTime();
+
 	}
-    
+
+
     /* add the controls to generate poses via unicycle model*/
     void addControlsTrajectory(const std::vector<double>& v, const std::vector<double>& omega)
     {
@@ -769,8 +788,64 @@ int main(int argc, char ** argv)
 
 	std::shared_ptr<SlippageControllerNode> Ctrl(new SlippageControllerNode());
 
-	rclcpp::spin(Ctrl);
+	auto client = Ctrl->create_client<optim_interfaces::srv::Optim>("/optim");
 
+    while (!client->wait_for_service(std::chrono::seconds(1))) {
+        if (!rclcpp::ok()) {
+            RCLCPP_ERROR(Ctrl->get_logger(), "Interrupted while waiting for the service. Exiting.");
+            return 1;
+        }
+        RCLCPP_INFO(Ctrl->get_logger(), "Service not available, retrying...");
+    }
+
+    auto request = std::make_shared<optim_interfaces::srv::Optim::Request>();
+    
+    request->x0 = 0.0;
+    request->y0 = 0.0;
+    request->theta0 = -0.0;
+    request->xf = -0.4758;
+    request->yf = -1.1238;
+    request->thetaf = 0.9638;
+    request->plan_type = Ctrl->getPlannerType();
+
+    while (!client->wait_for_service(std::chrono::seconds(1))) {
+        if (!rclcpp::ok()) {
+            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
+            return 0;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
+    }
+
+    auto result = client->async_send_request(request);
+
+std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
+
+	std::cout<<BLUE<<"STARTING SERVICE CALL FOR OPTIM"<<RESET<<std::endl;
+    std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
+
+    if (rclcpp::spin_until_future_complete(Ctrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
+        auto response = result.get();
+        if(response){
+			// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
+            for(size_t i = 0; i < response->des_x.size(); ++i){
+                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Step %zu", i);
+                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "X[%zu]: %.2f", i, response->des_x[i]);
+                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Y[%zu]: %.2f", i, response->des_y[i]);
+                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
+            }
+			//this starts the timers and so the whole loop
+			Ctrl->startController();
+
+        } else {
+                RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
+        }
+    } else {
+        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service /optim");
+    }
+
+
+	rclcpp::spin(Ctrl);	
+	
 	if(Ctrl->isCoppeliaSimEnabled())
 	{
 		Ctrl->stopCoppeliaSim();

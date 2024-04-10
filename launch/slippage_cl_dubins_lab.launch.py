@@ -74,6 +74,7 @@ def generate_launch_description():
             {'beta_slip_inner_coefficients_left': [  0.1210,   -5.5709]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_right': [0.1172 ,   5.8115 ]},#this are for right turn negative radius
             {'consider_slippage': True},
+            {'planner_type': "optim"},#dubins
         ],
         on_exit=launch.actions.Shutdown(),
     )
