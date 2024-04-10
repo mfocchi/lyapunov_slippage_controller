@@ -9,23 +9,23 @@ import launch
 def generate_launch_description():
     ld = LaunchDescription()
 
-    origin_RF = [1.0,0.0,0.0,
-                 0.0,0.0,-1.0,
-                 0.0,1.0,0.0]
-    experiment_id = 100
 
-    longitudinal_velocity = 0.10
-    scale_factor = 2.0 # used to calculate the the scale factor
-    omega_dubins_vec = get_exp_omega_vec(experiment_id, scale_factor)
-    times_dubins_vec = get_exp_time_vec(experiment_id, scale_factor)
-    path_gen_dt = 0.005
-    omega_vec = extract_settings_from_dubins(omega_dubins_vec, times_dubins_vec, path_gen_dt)
+    #old way to generate dubins
+    # experiment_id = 100
+    # scale_factor = 2.0 # used to calculate the the scale factor
+    # omega_dubins_vec = get_exp_omega_vec(experiment_id, scale_factor)
+    # times_dubins_vec = get_exp_time_vec(experiment_id, scale_factor)
+    # path_gen_dt = 0.005
+    # omega_vec = extract_settings_from_dubins(omega_dubins_vec, times_dubins_vec, path_gen_dt)
+    # n = len(omega_vec)
+    # v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     
     #override with fixed vel 
-    n = len(omega_vec)
-    n = 4000
+    longitudinal_velocity = 0.1
+    angular_velocity = 0.3
+    n = 1000
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
-    omega_vec     = np.linspace(0.3,0.3, n).tolist()
+    omega_vec = np.linspace(angular_velocity,angular_velocity, n).tolist()
     # stop execution of control inputs
     v_vec.append(0.0)
     v_vec.append(0.0)

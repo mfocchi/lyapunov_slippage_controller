@@ -65,7 +65,6 @@ private:
 	Eigen::Vector2d u_bar;
 	Eigen::Vector2d u;
 
-    std::vector<double> origin_RF;
 
 	//side slip
 	std::vector<double> side_slip_angle_coefficients_left ;
@@ -159,17 +158,6 @@ private:
 
 		double x = msg->pose.position.x;
 		double y = msg->pose.position.y;
-		//we perform rotation already in optitrack
-		// R = tf2::Matrix3x3(
-		// 	origin_RF[0], origin_RF[1], origin_RF[2],
-		// 	origin_RF[3], origin_RF[4], origin_RF[5],
-		// 	origin_RF[6], origin_RF[7], origin_RF[8]) * R;
-
-		// // Transform the coordinate system into the classic x,y on plane,z upwards
-		// double x = msg->pose.position.x * origin_RF[0] + msg->pose.position.y * origin_RF[1] + msg->pose.position.z * origin_RF[2]; 
-		// double y = msg->pose.position.x * origin_RF[3] + msg->pose.position.y * origin_RF[4] + msg->pose.position.z * origin_RF[5]; 
-		//double z = msg->pose.position.x * origin_RF[6] + msg->pose.position.y * origin_RF[7] + msg->pose.position.z * origin_RF[8]; 
-
 		double roll, pitch, yaw;
 		Eigen::Vector3d rpy = euler_from_quaternion(q);
 		
@@ -570,7 +558,6 @@ private:
 	}
 
 
-
 public:
     SlippageControllerNode() : CoppeliaSimNode("lyapunov_slippage_controller")
     {
@@ -585,10 +572,6 @@ public:
 		declare_parameter("automatic_pose_init", false);
 		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
 
-		//OLD
-		// declare_parameter("long_slip_inner_coefficients", std::vector<double>({0.0,0.0,0.0}));
-		// declare_parameter("long_slip_outer_coefficients", std::vector<double>({0.0,0.0,0.0}));
-		// declare_parameter("side_slip_angle_coefficients", std::vector<double>({0.0,0.0,0.0}));
 
 
 		declare_parameter("side_slip_angle_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
@@ -635,14 +618,11 @@ public:
 		beta_slip_inner_coefficients_left = this->get_parameter("beta_slip_inner_coefficients_left").as_double_array();
 		beta_slip_inner_coefficients_right = this->get_parameter("beta_slip_inner_coefficients_right").as_double_array();
 
-		origin_RF = this->get_parameter("origin_RF").as_double_array();
 		
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
+	
 		
-	
-	
-	
 	}
     
 	std::string getPlannerType()
@@ -650,7 +630,7 @@ public:
 		return planner_type;
 	}
 
-	void startController(void)
+	void startController(bool generate_ref_traj = false)
 	{
 
 		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
@@ -795,7 +775,7 @@ int main(int argc, char ** argv)
             return 1;
         }
         RCLCPP_ERROR(Ctrl->get_logger(), "Optim/dubins Service not available, USING DEFAULT omega and v values...");
-		Ctrl->startController();
+		Ctrl->startController(true);
 		start_service = false;
 		break;
     }
@@ -816,7 +796,7 @@ int main(int argc, char ** argv)
 		auto result = client->async_send_request(request);
 
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
-		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<Ctrl->getPlannerType()<<RESET<<<<std::endl;
+		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<Ctrl->getPlannerType()<<RESET<<std::endl;
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
 
 		if (rclcpp::spin_until_future_complete(Ctrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
@@ -830,7 +810,7 @@ int main(int argc, char ** argv)
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
 				}
 				//this starts the timers and so the whole loop
-				Ctrl->startController();
+				Ctrl->startController(false);
 
 			} else {
 					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
