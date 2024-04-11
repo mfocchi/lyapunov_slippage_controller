@@ -566,6 +566,14 @@ private:
 
 
 public:
+
+
+	std::vector<double> v_vec;
+	std::vector<double> omega_vec;
+	std::vector<double> x_vec;
+	std::vector<double> y_vec;
+	std::vector<double> theta_vec;
+
     SlippageControllerNode() : CoppeliaSimNode("lyapunov_slippage_controller")
     {
 		declare_parameter("track_distance_m", 0.606);
@@ -799,7 +807,7 @@ int main(int argc, char ** argv)
 		request->y0 = 0.0;
 		request->theta0 = -0.0;
 		request->xf = -0.4758;
-		request->yf = -1.1238;
+		request->yf = -1.3;
 		request->thetaf = 0.9638;
 		request->plan_type = SlippageCtrl->getPlannerType();
 
@@ -816,9 +824,16 @@ int main(int argc, char ** argv)
 				// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
 				for(size_t i = 0; i < response->des_x.size(); ++i){
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Step %zu", i);
-					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "X[%zu]: %.2f", i, response->des_x[i]);
-					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Y[%zu]: %.2f", i, response->des_y[i]);
-					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Xd[%zu]: %.4f", i, response->des_x[i]);
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Yd[%zu]: %.4f", i, response->des_y[i]);
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Thetad[%zu]: %.4f", i, response->des_theta[i]);			
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "vd[%zu]: %.4f", i, response->des_v[i]);	
+					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "omegad[%zu]: %.4f", i, response->des_omega[i]);			
+					SlippageCtrl->v_vec.push_back(response->des_v[i]);
+					SlippageCtrl->omega_vec.push_back(response->des_omega[i]);
+		 			SlippageCtrl->x_vec.push_back(response->des_x[i]);
+					SlippageCtrl->y_vec.push_back(response->des_y[i]);
+					SlippageCtrl->theta_vec.push_back(response->des_theta[i]);				
 				}
 				//this starts the timers and so the whole loop
 				SlippageCtrl->startController(false);
