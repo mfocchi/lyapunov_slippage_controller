@@ -83,12 +83,13 @@ private:
 	std::string planner_type;
 
 
-	//new imoplem
+	//new implem
 	double alpha_f = 0.;
 	double alpha_f_old = 0.;
 	double alpha = 0.;
 	double alpha_dot =0.;
 
+	bool generate_ref_traj = false;
 
 
 	void timerCmdCallback()
@@ -411,25 +412,20 @@ private:
 
 	void setupTrajectory()
 	{
-		std::vector<double> v_vec = this->get_parameter("v_des_mps").as_double_array();
-		std::vector<double> omega_vec = this->get_parameter("omega_des_radps").as_double_array();
-		std::vector<double> x_vec = this->get_parameter("x_des_m").as_double_array();
-		std::vector<double> y_vec = this->get_parameter("y_des_m").as_double_array();
-		std::vector<double> theta_vec = this->get_parameter("theta_des_rad").as_double_array();
-		bool COPY_WHOLE_TRAJ = this->get_parameter("copy_trajectory").as_bool();
 		
+
 		this->t_start = getCurrentTime();
 		try{
-			if(COPY_WHOLE_TRAJ)
+			if(!this->generate_ref_traj)
 			{
-				if(code_verbosity_setup == DEBUG || code_verbosity_setup == MINIMAL)
-					std::cout << "Trajectory: copying the whole inputs and trajectory" << std::endl;
+				std::cout << RED<<"Trajectory: copying the whole inputs and trajectory" << RESET<<std::endl;
 				this->addTrajectory(v_vec, omega_vec, x_vec, y_vec, theta_vec);
 			}
 			else
 			{
-				if(code_verbosity_setup == DEBUG || code_verbosity_setup == MINIMAL)
-					std::cout << "Trajectory: copying only control inputs" << std::endl;
+				std::cout << RED<<"Trajectory: getting user defined velocity values" << RESET<<std::endl;
+				v_vec = this->get_parameter("v_des_mps").as_double_array();
+				omega_vec = this->get_parameter("omega_des_radps").as_double_array();
 				this->addControlsTrajectory(v_vec, omega_vec);
 			}
 		}
@@ -645,9 +641,9 @@ public:
 		return planner_type;
 	}
 
-	void startController(bool generate_ref_traj = false)
+	void startController(bool generate_reference = false)
 	{
-
+		this->generate_ref_traj = generate_reference;
 		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
 		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
@@ -794,6 +790,7 @@ int main(int argc, char ** argv)
             return 1;
         }
         RCLCPP_ERROR(SlippageCtrl->get_logger(), "Optim/dubins Service not available, USING DEFAULT omega and v values...");
+		//generate trajectory
 		SlippageCtrl->startController(true);
 		start_service = false;
 		break;
