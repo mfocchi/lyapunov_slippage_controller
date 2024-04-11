@@ -28,6 +28,11 @@ LyapController::LyapController(double Kp, double Ktheta, double dt)
 }
 
 
+void LyapController::setReferenceStepTime(const double dt)
+{
+   this->RobotModel->setStepTime(dt);
+}
+
 Eigen::Vector2d LyapController::run(const Eigen::Vector3d& pose)
 {
     Eigen::Vector2d u = computeLaw(pose);

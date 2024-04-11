@@ -68,7 +68,8 @@ public:
     void resetTrajectory() {u_desired.clear(); pose_desired.clear();}
     void setCurrentTime(double t) {this->current_time = t;}
     void setStateOffset(double x, double y, double theta) {this->pose_offset << x,y,theta;}
-
+    void setReferenceStepTime(const double dt);
+    
     Eigen::Vector2d getControlInputDesiredOnTime(double t) const;
     Eigen::Vector3d getPoseDesiredOnTime(double t) const;
     std::string stringSetupInfo() const;
