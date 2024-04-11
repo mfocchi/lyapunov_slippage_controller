@@ -437,30 +437,22 @@ private:
 			std::cout << "R=" << R << std::endl;
 		}
 		
-		double a0,a1,a2,a3;
-		double alpha;
-		if(R > 0.0) // turning left
+		double a0,a1;
+
+	
+		if(R > 0.0) // turning left (alpha negative)
 		{
-			
-			a0 = this->side_slip_angle_coefficients_left.at(0);
-			a1 = this->side_slip_angle_coefficients_left.at(1);
-			a2 = this->side_slip_angle_coefficients_left.at(2);
-			a3 = this->side_slip_angle_coefficients_left.at(3);		
-			alpha = a0*exp(a1*R) + a2*exp(a3*R);
-			if (alpha < -M_PI/2)
-				alpha = -M_PI/2;
+				a0 = this->side_slip_angle_coefficients_left.at(0);
+				a1 = this->side_slip_angle_coefficients_left.at(1);
+				
 		}
 		else // turning right
 		{
 		    a0 = this->side_slip_angle_coefficients_right.at(0);
-			a1 = this->side_slip_angle_coefficients_right.at(1);
-			a2 = this->side_slip_angle_coefficients_right.at(2);
-			a3 = this->side_slip_angle_coefficients_right.at(3);	
-			alpha = a0*exp(a1*R) + a2*exp(a3*R);
-			if (alpha > M_PI/2)
-				alpha = M_PI/2;	
+			a1 = this->side_slip_angle_coefficients_right.at(1);	
+		
 		}
-		return alpha;
+		return  a0*exp(a1*R);;
 	}
 	
 	Eigen::Vector2d computeLongSlipCompensation(const double ideal_wheel_L,const double ideal_wheel_R, const Eigen::Vector2d& u) const
@@ -485,6 +477,7 @@ private:
 			a1 = this->beta_slip_outer_coefficients_left.at(1);
 			beta_outer = a0*exp(a1*R);
 			v_enc_r+=beta_outer;
+			//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
 		}
 		else // turning right , left wheel is outer
 		{
@@ -492,11 +485,12 @@ private:
 			a1 = this->beta_slip_inner_coefficients_right.at(1);
 			beta_inner = a0*exp(a1*R);
 			v_enc_r-=beta_inner;
-
+		
 			a0 = this->beta_slip_outer_coefficients_right.at(0);
 			a1 = this->beta_slip_outer_coefficients_right.at(1);
 			beta_outer = a0*exp(a1*R);
 			v_enc_l+=beta_outer;
+			//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
 		}
 		Eigen::Vector2d wheel_speed_comp;
 		wheel_speed_comp(0) = Model->gearbox / Model->wheel_radius* v_enc_l;
