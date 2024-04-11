@@ -254,27 +254,52 @@ private:
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 		std::cout<<"---------------------------------------------------------- "<< std::endl;
+
+
+        //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
+		// the have a delay of one step
+		//alpha 
+		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
+		double filter_gain = dt/(dt+0.005);
+
+		// Eigen::Vector2d u_des;
+		// u_des << 0.1, 0.3;
+
+		this->alpha = computeSideSlipAngle(u);
+		//filter is always positive
+		this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
+
+		//alpha dot	is computed on filtered value and the sign is recovered from omega (radius)
+		this->alpha_dot = sign(u(1)) * (this->alpha_f  - alpha_f_old) / dt;
+		this->alpha_f_old = this->alpha_f;
+
 		// // compute an estimation of the longitudinal and lateral slips
-		Eigen::Vector3d pose_offset(0.0, 0.0, sign(alpha)*this->alpha_f);
+		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha);
 		Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
 		
 		//make theta+alpha track theta_des
 		u_bar = Ctrl->run(pose_bar);
+
 	
-		// compute commands with side slip compensation
-		u(0) = u_bar(0) * cos(sign(alpha)*this->alpha_f);
+		
+		// // compute commands with side slip compensation
+		u(0) = u_bar(0) * cos(sign(u(1))*this->alpha_f);
 
-		if ((getCurrentTime() - t_start)< 0.05)
-		{			
-			std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
-			u(1) = u_bar(1);
-		}
-		else{
+		// if ((getCurrentTime() - t_start)< 0.05)
+		// {			
+		// 	std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
+		// 	u(1) = u_bar(1);
+		// }
+		// else{
 			
-			u(1) = u_bar(1) -this->alpha_dot;
-		}
+		// 	u(1) = u_bar(1) - 0.1*sign(alpha)*this->alpha_dot;
+		// }
 
+		u(1) = u_bar(1) -this->alpha_dot;
 			
+		//no slippage comp			 
+		//u = Ctrl->run(this->pose);
+
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
@@ -287,23 +312,11 @@ private:
 	    double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
 
 
-        //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
-		// the have a delay of one step
-
-		//alpha 
-		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
-		double filter_gain = dt/(dt+0.005);
-		this->alpha = computeSideSlipAngle(u_bar);
-		//filter always positive
-		this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
-		//alpha dot	
-		this->alpha_dot =  sign(alpha) * (abs(this->alpha_f)  - abs(alpha_f_old)) / dt;
-		this->alpha_f_old = this->alpha_f;
 
 		Eigen::Vector2d motor_vel_compensated, motor_vel;
 		motor_vel << motor_vel_L, motor_vel_R; //for debug
 		//compute compensated wheel speed after accounting longitudinal slippage
-		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u_bar);
+		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
 				
 		if(code_verbosity_pub == DEBUG)
 		{
@@ -311,7 +324,7 @@ private:
 			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
 			std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_compensated(0) << " RIGHT " << motor_vel_compensated(1) << std::endl;
 		}
-		return motor_vel;
+		return motor_vel_compensated;
     }
 
 
