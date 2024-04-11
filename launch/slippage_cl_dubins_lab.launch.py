@@ -20,6 +20,8 @@ def generate_launch_description():
     # n = len(omega_vec)
     # v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     
+    path_gen_dt = 0.005
+
     #override with fixed vel 
     longitudinal_velocity = 0.1
     angular_velocity = 0.3
@@ -83,7 +85,7 @@ def generate_launch_description():
     now = datetime.now()
 
     dt_string = now.strftime("%d-%m-%H-%M-%S")
-    param_string = 'exp_%i_' % (experiment_id)
+    param_string = 'exp_'
     bag_string = 'bagfiles/slip_test_'
     bag_name = bag_string + param_string + dt_string + '.bag'
     record_node = ExecuteProcess(

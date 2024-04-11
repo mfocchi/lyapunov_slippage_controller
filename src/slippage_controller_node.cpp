@@ -761,6 +761,10 @@ public:
 			updatePoseWithMovingAverage(x, y, yaw);
 		}
 	}
+	void setReferenceStepTime(const double dt)
+	{
+		Ctrl->setReferenceStepTime(dt);
+	}
 };
 
 // MAIN /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -771,18 +775,18 @@ int main(int argc, char ** argv)
 	rclcpp::init(argc, argv);
 	printf("Lyapunov Controller node start up\n");
 
-	std::shared_ptr<SlippageControllerNode> Ctrl(new SlippageControllerNode());
+	std::shared_ptr<SlippageControllerNode> SlippageCtrl(new SlippageControllerNode());
 
-	auto client = Ctrl->create_client<optim_interfaces::srv::Optim>("/optim");
+	auto client = SlippageCtrl->create_client<optim_interfaces::srv::Optim>("/optim");
 
 
     while (!client->wait_for_service(std::chrono::seconds(2))) {
         if (!rclcpp::ok()) {
-            RCLCPP_ERROR(Ctrl->get_logger(), "Interrupted while waiting for the service. Exiting.");
+            RCLCPP_ERROR(SlippageCtrl->get_logger(), "Interrupted while waiting for the service. Exiting.");
             return 1;
         }
-        RCLCPP_ERROR(Ctrl->get_logger(), "Optim/dubins Service not available, USING DEFAULT omega and v values...");
-		Ctrl->startController(true);
+        RCLCPP_ERROR(SlippageCtrl->get_logger(), "Optim/dubins Service not available, USING DEFAULT omega and v values...");
+		SlippageCtrl->startController(true);
 		start_service = false;
 		break;
     }
@@ -797,16 +801,16 @@ int main(int argc, char ** argv)
 		request->xf = -0.4758;
 		request->yf = -1.1238;
 		request->thetaf = 0.9638;
-		request->plan_type = Ctrl->getPlannerType();
+		request->plan_type = SlippageCtrl->getPlannerType();
 
 		
 		auto result = client->async_send_request(request);
 
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
-		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<Ctrl->getPlannerType()<<RESET<<std::endl;
+		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<SlippageCtrl->getPlannerType()<<RESET<<std::endl;
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
 
-		if (rclcpp::spin_until_future_complete(Ctrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
+		if (rclcpp::spin_until_future_complete(SlippageCtrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
 			auto response = result.get();
 			if(response){
 				// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
@@ -817,7 +821,9 @@ int main(int argc, char ** argv)
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Theta[%zu]: %.2f", i, response->des_theta[i]);			
 				}
 				//this starts the timers and so the whole loop
-				Ctrl->startController(false);
+				SlippageCtrl->startController(false);
+				//override the default discretization of reference
+				SlippageCtrl->setReferenceStepTime(response->dt);
 
 			} else {
 					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
@@ -827,11 +833,11 @@ int main(int argc, char ** argv)
 		}
 	}
 
-	rclcpp::spin(Ctrl);	
+	rclcpp::spin(SlippageCtrl);	
 	
-	if(Ctrl->isCoppeliaSimEnabled())
+	if(SlippageCtrl->isCoppeliaSimEnabled())
 	{
-		Ctrl->stopCoppeliaSim();
+		SlippageCtrl->stopCoppeliaSim();
 	}
 	rclcpp::shutdown();
 	printf("Lyapunov Controller node shutdown\n");
