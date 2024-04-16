@@ -21,7 +21,7 @@ typedef std::shared_ptr<LyapController> LyapControllerPtr;
 #define DECIMATION_PRINT 5
 class LyapController 
 {
-private:
+public:
     double Kp;      //feedback proportional constant for longitudinal velocity
     double Ktheta;  //feedback proportional constant for angular velocity
     double time_end;
@@ -42,7 +42,7 @@ private:
     Eigen::Vector2d computeLaw(const Eigen::Vector3d& pose);
     void updateTrackingErrors(const Eigen::Vector3d& pose_ref, const Eigen::Vector3d& pose);
     double computeMaxTime() const;
-public:
+
     LyapController(double Kp, double Ktheta, double dt);
     ~LyapController(){u_desired.clear(); pose_desired.clear();}
 
