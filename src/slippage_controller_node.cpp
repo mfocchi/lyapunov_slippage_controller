@@ -852,8 +852,8 @@ int main(int argc, char ** argv)
 		request->x0 = 0.0;
 		request->y0 = 0.0;
 		request->theta0 = -0.0;
-		request->xf = -0.4758;
-		request->yf = -1.3;
+		request->xf = -0.2758;
+		request->yf = -3.1238;
 		request->thetaf = 0.9638;
 		request->plan_type = SlippageCtrl->getPlannerType();
 
@@ -864,8 +864,12 @@ int main(int argc, char ** argv)
 		std::cout<<BLUE<<"STARTING SERVICE CALL FOR PLANNING "<<SlippageCtrl->getPlannerType()<<RESET<<std::endl;
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
 
+
+
+	
 		if (rclcpp::spin_until_future_complete(SlippageCtrl, result) == rclcpp::FutureReturnCode::SUCCESS) {
 			auto response = result.get();
+			
 			if(response){
 				// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
 				for(size_t i = 0; i < response->des_x.size(); ++i){
@@ -875,6 +879,7 @@ int main(int argc, char ** argv)
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Thetad[%zu]: %.4f", i, response->des_theta[i]);			
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "vd[%zu]: %.4f", i, response->des_v[i]);	
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "omegad[%zu]: %.4f", i, response->des_omega[i]);			
+					//TODO find a best way to fill in the vectors that does not slow down the real time 	
 					SlippageCtrl->v_vec.push_back(response->des_v[i]);
 					SlippageCtrl->omega_vec.push_back(response->des_omega[i]);
 		 			SlippageCtrl->x_vec.push_back(response->des_x[i]);

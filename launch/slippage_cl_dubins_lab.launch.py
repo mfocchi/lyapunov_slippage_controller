@@ -23,9 +23,9 @@ def generate_launch_description():
     path_gen_dt = 0.005
 
     #override with fixed vel 
-    longitudinal_velocity = 0.1
-    angular_velocity = 0.3
-    n = 1000
+    longitudinal_velocity = 0.2
+    angular_velocity = 1
+    n = 3000
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     omega_vec = np.linspace(angular_velocity,angular_velocity, n).tolist()
     # stop execution of control inputs
@@ -43,8 +43,8 @@ def generate_launch_description():
         executable="optitrack",
         name="optitrack",
     )
-    Kp = 0.1
-    Kth = 2.0
+    Kp = 5.
+    Kth = 10.0
     controller_node = Node(
         package="lyapunov_slippage_controller",
         executable="slippage_controller_node",
@@ -70,8 +70,8 @@ def generate_launch_description():
             {'beta_slip_outer_coefficients_right': [  0.1298 , -2.4071]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_left': [  0.1210,   -5.5709]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_right': [0.1172 ,   5.8115 ]},#this are for right turn negative radius
-            {'consider_slippage': False},
-            {'planner_type': "optim"},#dubins
+            {'consider_slippage': True},
+            {'planner_type': "optim"},#dubins/optim
         ],
         on_exit=launch.actions.Shutdown(),
     )
