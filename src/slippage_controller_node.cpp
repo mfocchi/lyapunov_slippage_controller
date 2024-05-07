@@ -872,6 +872,7 @@ int main(int argc, char ** argv)
 			
 			if(response){
 				// for some reason the service does not work ros2 service call /optim optim_interfaces/srv/Optim
+				auto start = std::chrono::high_resolution_clock::now();
 				for(size_t i = 0; i < response->des_x.size(); ++i){
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Step %zu", i);
 					RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Xd[%zu]: %.4f", i, response->des_x[i]);
@@ -886,6 +887,9 @@ int main(int argc, char ** argv)
 					SlippageCtrl->y_vec.push_back(response->des_y[i]);
 					SlippageCtrl->theta_vec.push_back(response->des_theta[i]);				
 				}
+				std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
+				auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
+				RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Time elapsed: %.2ld", elapsed_ms.count());
 				//this starts the timers and so the whole loop
 				SlippageCtrl->startController(false);
 				//override the default discretization of reference
