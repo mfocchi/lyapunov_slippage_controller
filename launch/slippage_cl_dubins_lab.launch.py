@@ -6,6 +6,8 @@ from datetime import datetime
 from launch.actions import ExecuteProcess
 import numpy as np
 import launch
+from ament_index_python.packages import get_package_share_directory
+
 def generate_launch_description():
     ld = LaunchDescription()
 
@@ -43,6 +45,10 @@ def generate_launch_description():
         executable="optitrack",
         name="optitrack",
     )
+
+    Simulation = True
+    RosBagRecord = False
+
     Kp = 5.
     Kth = 10.0
     controller_node = Node(
@@ -54,11 +60,11 @@ def generate_launch_description():
         parameters=[
             {"wheel_radius_m": 0.0856},
             {"wheels_distance_m": 0.606},
-            {"enable_coppeliasim": False},
+            {"enable_coppeliasim": Simulation},
             {"Kp": Kp},
             {"Ktheta": Kth},
             {"dt": path_gen_dt},
-            {"pub_dt_ms": 5},
+            {"pub_dt_ms": 100},
             {"v_des_mps" : v_vec},
             {"omega_des_radps" : omega_vec},
             {"pose_init_m_m_rad" : pose_init},
@@ -75,12 +81,23 @@ def generate_launch_description():
         ],
         on_exit=launch.actions.Shutdown(),
     )
-    robot_node = Node(
-        package="ros2_maxxii", #old driver maxxii_interface
-        executable="maxxii_node",
-        name="maxxii_node",
-        output='screen'
-    )
+    if not Simulation:
+        robot_node = Node(
+            package="ros2_maxxii", #old driver was maxxii_interface
+            executable="maxxii_node",
+            name="maxxii_node",
+            output='screen'
+        )
+        ld.add_action(optitrack_node)
+        ld.add_action(robot_node)
+    else:
+        #kill previous instances 
+        os.system("pkill coppeliaSim")
+        os.system("ros2  lifecycle set  /sim_ros2_interface shutdown")
+        os.system("ros2  lifecycle set  /transform_listener shutdown")
+        scene = get_package_share_directory('lyapunov_slippage_controller')+'/config/tractor_ros2.ttt'
+        file = os.getenv("COPPELIASIM_ROOT_DIR")+"/coppeliaSim.sh"+" "+scene+" &"
+        os.system(file)
 
     now = datetime.now()
 
@@ -92,10 +109,9 @@ def generate_launch_description():
         cmd=['ros2', 'bag', 'record', '-a', '-o%s' %bag_name]
     )
     
-    ld.add_action(optitrack_node)
     ld.add_action(controller_node)
-    ld.add_action(robot_node)
-    ld.add_action(record_node)
+    if RosBagRecord:
+        ld.add_action(record_node)
     return ld
 
 def extract_settings_from_dubins(omega_vec, time_vec, dt):
