@@ -7,7 +7,7 @@ CoppeliaSimNode::CoppeliaSimNode(const std::string& node_name)
     declare_parameter("sim_dt_ms", 100);
     declare_parameter("enable_sim_render",  false);
     declare_parameter("start_wait_time_ms",  100);
-    declare_parameter("start_timeout_ms" ,   10000);
+    declare_parameter("start_timeout_ms" ,   1000);
     int sim_dt = this->get_parameter("sim_dt_ms").as_int();
     enable_sim_render  = this->get_parameter("enable_sim_render").as_bool(); 
     enable_coppeliaSim = this->get_parameter("enable_coppeliasim").as_bool(); 
