@@ -25,9 +25,9 @@ def generate_launch_description():
     path_gen_dt = 0.005
 
     #override with fixed vel 
-    longitudinal_velocity = 0.2
-    angular_velocity = 1
-    n = 3000
+    longitudinal_velocity = 0.3
+    angular_velocity = 0.5
+    n = 1000
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     omega_vec = np.linspace(angular_velocity,angular_velocity, n).tolist()
     # stop execution of control inputs
@@ -70,13 +70,13 @@ def generate_launch_description():
             {"pose_init_m_m_rad" : pose_init},
             {'automatic_pose_init': True},
             {'time_for_pose_init_s': 1.0},
-            {'side_slip_angle_coefficients_left': [-0.5989,   -5.5337]}, #this are for left turn positive radius
-            {'side_slip_angle_coefficients_right': [0.5989,  5.5337]}, #this are for right turn negative radius
-            {'beta_slip_outer_coefficients_left': [0.1298,    2.4071]},#this are for right turn negative radius
-            {'beta_slip_outer_coefficients_right': [  0.1298 , -2.4071]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_left': [  0.1210,   -5.5709]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_right': [0.1172 ,   5.8115 ]},#this are for right turn negative radius
-            {'consider_slippage': True},
+            {'side_slip_angle_coefficients_left': [-0.3465,   -3.2004]}, #this are for left turn positive radius
+            {'side_slip_angle_coefficients_right': [0.3465 ,  3.2004]}, #this are for right turn negative radius
+            {'beta_slip_outer_coefficients_left': [ 0.0473 ,  -1.8081]},#this are for right turn negative radius
+            {'beta_slip_outer_coefficients_right': [ 0.0857,    1.8]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_left': [ 0.0532 ,  -2.2327]},#this are for left turn positive radius
+            {'beta_slip_inner_coefficients_right': [0.0502 ,   2.3925]},#this are for right turn negative radius
+            {'consider_slippage': False},
             {'planner_type': "optim"},#dubins/optim
         ],
         on_exit=launch.actions.Shutdown(),

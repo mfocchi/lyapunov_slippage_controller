@@ -47,30 +47,32 @@ def generate_launch_description():
     # omega_vec.append(0.0)
 
 
-    #variable radius of curvature (change with angle)
-    # R_initial = 0.05
-    # R_final = 0.6
-    # dt = 0.005  # [s] 200Hz
-    # long_v = 0.1  # [m/s]
-    # change_interval = 6.
-    # increment = 0.05
-    # turning_radius = np.arange(R_initial, R_final, increment)
-    # turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
-    # turning_radius_3 = np.append(turning_radius_2 , np.arange(R_initial+increment/3, R_final-2*increment/3, increment))
-    # turning_radius_vec = turning_radius_3
-
-    #only around 0.3
-    R_initial = 0.24
-    R_final = 0.33
+    #variable radius of curvature (change with time)
+    #max speed of wheels (motors) is 1500 rpm and 157 rad /s => max omega is 1 
+    R_initial = 0.1
+    R_final = 0.6
     dt = 0.005  # [s] 200Hz
     long_v = 0.1  # [m/s]
     change_interval = 6.
-    increment = 0.005
-    turning_radius_vec = -np.arange(R_initial, R_final, increment)
-  
+    increment = 0.05
+    turning_radius = np.arange(R_initial, R_final, increment)
+    turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
+    turning_radius_3 = np.append(turning_radius_2 , np.arange(R_initial+increment/3, R_final-2*increment/3, increment))
+    turning_radius_vec = turning_radius_3
 
-
+    #only around  R = 0.3
+    # R_initial = 0.24
+    # R_final = 0.33
+    # dt = 0.005  # [s] 200Hz
+    # long_v = 0.1  # [m/s]
+    # change_interval = 6.
+    # increment = 0.005
+    # turning_radius_vec = -np.arange(R_initial, R_final, increment)
+    
+    #turning left
     ang_w = np.round(long_v / turning_radius_vec, 3)  # [rad/s]
+    #turning right
+    #ang_w = -np.round(long_v / turning_radius_vec, 3)  # [rad/s]
     omega_vec = []
     v_vec = []
     time = 0

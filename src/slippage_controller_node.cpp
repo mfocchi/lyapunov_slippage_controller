@@ -845,6 +845,8 @@ int main(int argc, char ** argv)
 		break;
     }
 
+	RCLCPP_ERROR(SlippageCtrl->get_logger(), "IF THE ROBOT DOES NOT MOVE CHECK IF THE USB PORT IS CONNECTED!");
+
 	if (start_service)
 	{
 		auto request = std::make_shared<optim_interfaces::srv::Optim::Request>();
