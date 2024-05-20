@@ -68,8 +68,8 @@ public:
     {
         double d,r,gear_ratio;
 		declare_parameter("track_distance_m", 0.606);
-		declare_parameter("sprocket_radius_m", 0.0979);
-		declare_parameter("gearbox_ratio", 39.5);
+		declare_parameter("sprocket_radius_m", 0.0856);
+		declare_parameter("gearbox_ratio", 34.45);
         declare_parameter("pub_dt_ms", 200);
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
     	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
