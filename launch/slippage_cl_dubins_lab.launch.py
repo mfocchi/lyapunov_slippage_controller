@@ -25,11 +25,14 @@ def generate_launch_description():
     path_gen_dt = 0.005
 
     #override with fixed vel 
-    longitudinal_velocity = 0.3
-    angular_velocity = 0.5
-    n = 1000
+    longitudinal_velocity = 0.2
+    angular_velocity1 = 0.3
+    angular_velocity2 = -0.6
+    exp_duration = 8.
+    n = int(exp_duration/path_gen_dt)
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
-    omega_vec = np.linspace(angular_velocity,angular_velocity, n).tolist()
+    omega_vec = np.linspace(angular_velocity1,angular_velocity1, int(n/2)).tolist()
+    omega_vec.extend(np.linspace(angular_velocity2,angular_velocity2, int(n/2)).tolist())
     # stop execution of control inputs
     v_vec.append(0.0)
     v_vec.append(0.0)
@@ -46,10 +49,10 @@ def generate_launch_description():
         name="optitrack",
     )
 
-    Simulation = True
-    RosBagRecord = False
+    Simulation = False
+    RosBagRecord = True
 
-    Kp = 5.
+    Kp = 15.
     Kth = 10.0
     controller_node = Node(
         package="lyapunov_slippage_controller",
@@ -60,11 +63,11 @@ def generate_launch_description():
         parameters=[
             {"wheel_radius_m": 0.0856},
             {"wheels_distance_m": 0.606},
-            {"enable_coppeliasim": Simulation},
+            {"enable_coppeliasim": False},
             {"Kp": Kp},
             {"Ktheta": Kth},
             {"dt": path_gen_dt},
-            {"pub_dt_ms": 100},
+            {"pub_dt_ms": 5},
             {"v_des_mps" : v_vec},
             {"omega_des_radps" : omega_vec},
             {"pose_init_m_m_rad" : pose_init},
@@ -76,7 +79,7 @@ def generate_launch_description():
             {'beta_slip_outer_coefficients_right': [ 0.0857,    1.8]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_left': [ 0.0532 ,  -2.2327]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_right': [0.0502 ,   2.3925]},#this are for right turn negative radius
-            {'consider_slippage': False},
+            {'consider_slippage': True},
             {'planner_type': "optim"},#dubins/optim
         ],
         on_exit=launch.actions.Shutdown(),

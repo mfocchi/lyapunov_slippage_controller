@@ -52,8 +52,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_trk_error;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_reference;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_actual;
-	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_slippage_commands;	
-	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_unicycle_commands;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_commands;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_commands;	
 	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_alpha;
 	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub;
     LyapControllerPtr Ctrl;
@@ -62,7 +62,7 @@ private:
     double t_start;
 	double t_pose_init;
 
-	Eigen::Vector2d u_bar;
+	Eigen::Vector2d u_des;
 	Eigen::Vector2d u;
 
 
@@ -130,15 +130,15 @@ private:
 		msg_reference_pos.header.frame_id = "world";		
 		pub_reference->publish(msg_reference_pos);
 	
-		std_msgs::msg::Float64MultiArray msg_slippage_commands;
-		msg_slippage_commands.data.push_back(u(0));  
-		msg_slippage_commands.data.push_back(u(1));
-		pub_slippage_commands->publish(msg_slippage_commands);
+		std_msgs::msg::Float64MultiArray msg_commands;
+		msg_commands.data.push_back(u(0));  
+		msg_commands.data.push_back(u(1));
+		pub_commands->publish(msg_commands);
 
-		std_msgs::msg::Float64MultiArray msg_unicycle_commands;
-		msg_unicycle_commands.data.push_back(u_bar(0));  
-		msg_unicycle_commands.data.push_back(u_bar(1));
-		pub_unicycle_commands->publish(msg_unicycle_commands);
+		std_msgs::msg::Float64MultiArray msg_des_commands;
+		msg_des_commands.data.push_back(u_des(0));  
+		msg_des_commands.data.push_back(u_des(1));
+		pub_des_commands->publish(msg_des_commands);
 
 		std_msgs::msg::Float64MultiArray msg_alpha;
 		msg_alpha.data.push_back(this->alpha);
@@ -246,43 +246,45 @@ private:
 
 	// 	return motor_vel;
     // }
+
+
 	 Eigen::Vector2d trackTrajectorySlippage()
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
 		std::cout<<"---------------------------------------------------------- "<< std::endl;
 			
-		Eigen::Vector2d u_ctrl, du;
-		u_ctrl.setZero();
+		Eigen::Vector2d  du;
+		u.setZero();
 		du.setZero();
 			
-		Eigen::Vector2d u_d = Ctrl->getControlInputDesiredOnTime(Ctrl->current_time);
+		u_des = Ctrl->getControlInputDesiredOnTime(Ctrl->current_time);
 		Eigen::Vector3d pose_ref = Ctrl->getPoseDesiredOnTime(Ctrl->current_time);
 		Ctrl->updateTrackingErrors(pose_ref, pose);
 
 		double beta = (this->pose(2) + pose_ref(2));
 		double psi   = atan2(Ctrl->e_y, Ctrl->e_x);
-		double v_d= u_d(0);
+		double v_d= u_des(0);
 		double e_xy  = sqrt(pow(Ctrl->e_x, 2) + pow(Ctrl->e_y, 2));
-		this->alpha = computeSideSlipAngle(u_d);
+		this->alpha = computeSideSlipAngle(u_des);
 
 		du(0) = -Ctrl->Kp * e_xy * cos(psi  - (pose(2) + alpha) );
 		du(1) = -v_d * e_xy * 1/(cos((Ctrl->e_theta+alpha)/2))*sin(psi- (alpha+beta)/2)- Ctrl->Ktheta * sin(Ctrl->e_theta+alpha) ;
-		u_ctrl(0) = (u_d(0) + du(0))*cos(alpha);   
-		u_ctrl(1) = u_d(1)+ du(1);
+		u(0) = (u_des(0) + du(0))*cos(alpha);   
+		u(1) = u_des(1)+ du(1);
 
 		if(code_verbosity_pub == DEBUG)
 		{
-			std::cout<<"u_ctrl  [m/s, rad/s]: LIN " << u_ctrl(0) << " ANG " << u_ctrl(1) << std::endl;
+			std::cout<<"u_ctrl  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
 		}
 		//compute ideal wheel speed
 		// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
-		double motor_vel_L   = (u_ctrl(0) - u_ctrl(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
-	    double motor_vel_R = (u_ctrl(0) + u_ctrl(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+		double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+	    double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
 
 		Eigen::Vector2d motor_vel_compensated, motor_vel;
 		motor_vel << motor_vel_L, motor_vel_R; //for debug
 		//compute compensated wheel speed after accounting longitudinal slippage
-		//motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
+		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
 				
 		if(code_verbosity_pub == DEBUG)
 		{
@@ -300,82 +302,82 @@ private:
 /* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the standard
 	controller and finally the effects of slippage are compensated by a transformer */
-    Eigen::Vector2d trackTrajectorySlippageOld()
-    {
-		Ctrl->setCurrentTime(getCurrentTime() - t_start);
-		std::cout<<"---------------------------------------------------------- "<< std::endl;
+    // Eigen::Vector2d trackTrajectorySlippageOld()
+    // {
+	// 	Ctrl->setCurrentTime(getCurrentTime() - t_start);
+	// 	std::cout<<"---------------------------------------------------------- "<< std::endl;
 
 
-        //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
-		// the have a delay of one step
-		//alpha 
-		double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
-		double filter_gain = dt/(dt+0.005);
+    //     //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
+	// 	// the have a delay of one step
+	// 	//alpha 
+	// 	double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
+	// 	double filter_gain = dt/(dt+0.005);
 
-		// Eigen::Vector2d u_des;
-		// u_des << 0.1, 0.3;
+	// 	// Eigen::Vector2d u_des;
+	// 	// u_des << 0.1, 0.3;
 
-		this->alpha = computeSideSlipAngle(u);
-		//filter is always positive
-		this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
+	// 	this->alpha = computeSideSlipAngle(u);
+	// 	//filter is always positive
+	// 	this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
 
-		//alpha dot	is computed on filtered value and the sign is recovered from omega (radius)
-		this->alpha_dot = sign(u(1)) * (this->alpha_f  - alpha_f_old) / dt;
-		this->alpha_f_old = this->alpha_f;
+	// 	//alpha dot	is computed on filtered value and the sign is recovered from omega (radius)
+	// 	this->alpha_dot = sign(u(1)) * (this->alpha_f  - alpha_f_old) / dt;
+	// 	this->alpha_f_old = this->alpha_f;
 
-		// // compute an estimation of the longitudinal and lateral slips
-		Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha);
-		Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
+	// 	// // compute an estimation of the longitudinal and lateral slips
+	// 	Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha);
+	// 	Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
 		
-		//make theta+alpha track theta_des
-		u_bar = Ctrl->run(pose_bar);
+	// 	//make theta+alpha track theta_des
+	// 	u_bar = Ctrl->run(pose_bar);
 
 	
 		
-		// // compute commands with side slip compensation
-		u(0) = u_bar(0) * cos(sign(u(1))*this->alpha_f);
+	// 	// // compute commands with side slip compensation
+	// 	u(0) = u_bar(0) * cos(sign(u(1))*this->alpha_f);
 
-		// if ((getCurrentTime() - t_start)< 0.05)
-		// {			
-		// 	std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
-		// 	u(1) = u_bar(1);
-		// }
-		// else{
+	// 	// if ((getCurrentTime() - t_start)< 0.05)
+	// 	// {			
+	// 	// 	std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
+	// 	// 	u(1) = u_bar(1);
+	// 	// }
+	// 	// else{
 			
-		// 	u(1) = u_bar(1) - 0.1*sign(alpha)*this->alpha_dot;
-		// }
+	// 	// 	u(1) = u_bar(1) - 0.1*sign(alpha)*this->alpha_dot;
+	// 	// }
 
-		u(1) = u_bar(1) -this->alpha_dot;
+	// 	u(1) = u_bar(1) -this->alpha_dot;
 			
-		//no slippage comp			 
-		//u = Ctrl->run(this->pose);
+	// 	//no slippage comp			 
+	// 	//u = Ctrl->run(this->pose);
 
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-			std::cout<<RED<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << RESET<<std::endl;
-		}
+	// 	if(code_verbosity_pub == DEBUG)
+	// 	{
+	// 		std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
+	// 		std::cout<<RED<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << RESET<<std::endl;
+	// 	}
 
-		//compute ideal wheel speed
-		// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
-		double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
-	    double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+	// 	//compute ideal wheel speed
+	// 	// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
+	// 	double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
+	//     double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
 
 
 
-		Eigen::Vector2d motor_vel_compensated, motor_vel;
-		motor_vel << motor_vel_L, motor_vel_R; //for debug
-		//compute compensated wheel speed after accounting longitudinal slippage
-		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
+	// 	Eigen::Vector2d motor_vel_compensated, motor_vel;
+	// 	motor_vel << motor_vel_L, motor_vel_R; //for debug
+	// 	//compute compensated wheel speed after accounting longitudinal slippage
+	// 	motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
 				
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout<<"alpha:  " << this->alpha << " alpha_f:  " << this->alpha_f << " alpha_dot " << this->alpha_dot << std::endl;	
-			std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
-			std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_compensated(0) << " RIGHT " << motor_vel_compensated(1) << std::endl;
-		}
-		return motor_vel_compensated;
-    }
+	// 	if(code_verbosity_pub == DEBUG)
+	// 	{
+	// 		std::cout<<"alpha:  " << this->alpha << " alpha_f:  " << this->alpha_f << " alpha_dot " << this->alpha_dot << std::endl;	
+	// 		std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
+	// 		std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_compensated(0) << " RIGHT " << motor_vel_compensated(1) << std::endl;
+	// 	}
+	// 	return motor_vel_compensated;
+    // }
 
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
@@ -384,7 +386,7 @@ private:
     Eigen::Vector2d trackTrajectoryClassic()
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
-
+		u_des = Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start);
 		u = Ctrl->run(this->pose);
 		if(code_verbosity_pub == DEBUG)
 			std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
@@ -726,8 +728,8 @@ public:
 		pub_trk_error = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/tracking_error", qos_ctrl);
 		pub_actual = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_act", qos_ctrl);
 		pub_reference = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_ref", qos_ctrl);
-		pub_slippage_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/slippage_commands", qos_ctrl);
-		pub_unicycle_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/unicycle_commands", qos_ctrl);
+		pub_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/commands", qos_ctrl);
+		pub_des_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/des_commands", qos_ctrl);
 		pub_alpha = this->create_publisher<std_msgs::msg::Float64MultiArray>("/alpha_alpha_dot", qos_ctrl);
 
 		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
