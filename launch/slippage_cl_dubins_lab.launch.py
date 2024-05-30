@@ -52,8 +52,8 @@ def generate_launch_description():
     Simulation = False
     RosBagRecord = True
 
-    Kp = 15.
-    Kth = 10.0
+    Kp = 5.
+    Kth = 5.0
     controller_node = Node(
         package="lyapunov_slippage_controller",
         executable="slippage_controller_node",
@@ -76,7 +76,7 @@ def generate_launch_description():
             {'side_slip_angle_coefficients_left': [-0.3465,   -3.2004]}, #this are for left turn positive radius
             {'side_slip_angle_coefficients_right': [0.3465 ,  3.2004]}, #this are for right turn negative radius
             {'beta_slip_outer_coefficients_left': [ 0.0473 ,  -1.8081]},#this are for right turn negative radius
-            {'beta_slip_outer_coefficients_right': [ 0.0857,    1.8]},#this are for left turn positive radius
+            {'beta_slip_outer_coefficients_right': [ 0.0857,   3.58]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_left': [ 0.0532 ,  -2.2327]},#this are for left turn positive radius
             {'beta_slip_inner_coefficients_right': [0.0502 ,   2.3925]},#this are for right turn negative radius
             {'consider_slippage': True},
@@ -86,7 +86,7 @@ def generate_launch_description():
     )
     if not Simulation:
         robot_node = Node(
-            package="ros2_maxxii", #old driver was maxxii_interface
+            package="maxxii_interface", #old driver was maxxii_interface
             executable="maxxii_node",
             name="maxxii_node",
             output='screen'
