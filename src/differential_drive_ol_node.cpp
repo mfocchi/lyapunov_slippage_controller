@@ -11,6 +11,7 @@
 #include "lyapunov_slippage_controller/motionModels.h"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "lyapunov_slippage_controller/generalPurpose.h"
+#include <string>
 
 #define RESET   "\033[0m"
 #define RED     "\033[31m"      /* Red */
@@ -27,7 +28,11 @@ private:
     rclcpp::TimerBase::SharedPtr timer_cmd;
     std::vector<double> longitudinal_velocity;
     std::vector<double> angular_velocity;
-	std::shared_ptr<DifferentialDriveModel> Model;
+    std::vector<double> wheel_l_des;
+	std::vector<double> wheel_r_des;
+	std::string ident_type;
+	
+	 std::shared_ptr<DifferentialDriveModel> Model;
 	double deadband = 1.0;
     size_t count_; 
     long iter;
@@ -39,14 +44,37 @@ private:
             return;
         }
         sensor_msgs::msg::JointState msg_cmd;
-        double v = longitudinal_velocity.at(iter);
-        double omega = angular_velocity.at(iter);
-        Model->setUnicycleSpeed(v, omega);
-		double motor_vel_left  = Model->getLeftMotorRotationalSpeed();
-		double motor_vel_right = Model->getRightMotorRotationalSpeed();
+		double v;
+		double omega;
+		double motor_vel_right;
+		double motor_vel_left;
+
+		if (strcmp(ident_type.c_str(), "wheels")==0)
+		{
+			
+			motor_vel_left = wheel_l_des.at(iter);
+			motor_vel_right = wheel_r_des.at(iter);
+
+			//IMPORTANT map after gearbot befor computing v omega!
+			double wheel_vel_left = motor_vel_left*Model->gearbox;
+			double wheel_vel_right = motor_vel_right*Model->gearbox;
+			Model->setDifferentialSpeed(wheel_vel_left, wheel_vel_right);
+			v = Model->getLinearSpeed();
+			omega = Model->getAngularSpeed();
+		} 
+		
+		if (strcmp(ident_type.c_str(), "v_omega")==0)
+		{
+
+			v = longitudinal_velocity.at(iter);
+			omega = angular_velocity.at(iter);
+			Model->setUnicycleSpeed(v, omega);
+			motor_vel_left  = Model->getLeftMotorRotationalSpeed();
+			motor_vel_right = Model->getRightMotorRotationalSpeed();	
+		}
+
 		motor_vel_left += sign(motor_vel_left)*deadband;
 		motor_vel_right += sign(motor_vel_right)*deadband;
-
 		msg_cmd.header.stamp = this->get_clock()->now();
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = std::vector<double>{
@@ -73,6 +101,9 @@ public:
         declare_parameter("pub_dt_ms", 200);
     	declare_parameter("v_des_mps", std::vector<double>({0.0,0.0}));
     	declare_parameter("omega_des_radps", std::vector<double>({0.0,0.0}));
+		declare_parameter("wheel_l_vec", std::vector<double>({0.0,0.0}));
+    	declare_parameter("wheel_r_vec", std::vector<double>({0.0,0.0}));
+		declare_parameter("ident_type", "wheels");
 
         get_parameter("track_distance_m", d);
 		get_parameter("sprocket_radius_m", r);
@@ -80,6 +111,21 @@ public:
 		int pub_dt 		        = get_parameter("pub_dt_ms").as_int();
 		longitudinal_velocity   = get_parameter("v_des_mps").as_double_array();
 		angular_velocity	    = get_parameter("omega_des_radps").as_double_array();
+		wheel_l_des   = get_parameter("wheel_l_vec").as_double_array();
+		wheel_r_des	    = get_parameter("wheel_r_vec").as_double_array();
+		ident_type	    = get_parameter("ident_type").as_string();
+
+		if (strcmp(ident_type.c_str(), "wheels")==0)
+		{
+			std::cout<<RED<<"identification with wheel speed variation" <<RESET<<std::endl;
+		}
+
+		if (strcmp(ident_type.c_str(), "v_omega")==0)
+		{
+			std::cout<<RED<<"identification with v omega variation" <<RESET<<std::endl;
+		}
+					
+
 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
 
