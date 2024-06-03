@@ -92,10 +92,10 @@ private:
 			motor_vel_right};
         pub_wheel_cmd->publish(msg_cmd);
 
-		// std_msgs::msg::Float64MultiArray msg_des_vel;
-		// msg_des_vel.data.push_back(v);  
-		// msg_des_vel.data.push_back(omega);
-		// pub_des_vel->publish(msg_des_vel);
+		std_msgs::msg::Float64MultiArray msg_des_vel;
+		msg_des_vel.data.push_back(v);  
+		msg_des_vel.data.push_back(omega);
+		pub_des_vel->publish(msg_des_vel);
 
         iter++;
     }

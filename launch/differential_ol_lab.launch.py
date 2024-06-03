@@ -89,14 +89,17 @@ def generate_launch_description():
         wheel_l = -160. #-160:20: 160 //these are the wheel rad/s at MOTOR SIDE
         change_interval = 2.
         increment = 40   # it was = 40
-
         dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
-        wheel_r = np.arange(-160., 160., increment)       
+
+        if wheel_l>=0:
+            wheel_r = np.arange(160., -160., -increment)  
+        else:     
+            wheel_r = np.arange(-160., 160., increment)       
         time = 0
         i = 0
   
         while True:
-            time = np.round(time +dt,3)
+            time = np.round(time+dt,3)
             wheel_l_vec.append(wheel_l)
             wheel_r_vec.append(wheel_r[i])
             v_vec.append(0.0)
