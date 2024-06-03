@@ -2,8 +2,9 @@
 
 DifferentialDriveModel::DifferentialDriveModel(double wheel_radius, double wheel_distance, double gearbox)
 {
-    this->wheel_distance = wheel_distance;
+
     this->wheel_radius = wheel_radius;
+    this->wheel_distance = wheel_distance;
     this->gearbox = gearbox;
     setUnicycleSpeed(0.0,0.0);
 }

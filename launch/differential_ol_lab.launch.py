@@ -64,6 +64,8 @@ def generate_launch_description():
             time = np.round(time +dt,3)
             omega_vec.append(ang_w[i])
             v_vec.append(long_v)
+            wheel_l_vec.append(0.0)
+            wheel_r_vec.append(0.0)
             #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
             if time > ((1+i)*change_interval):
                 i +=1
@@ -84,12 +86,12 @@ def generate_launch_description():
         #OPEN LOOP wl wr (from -157 to 157)
         ####################################
         turning ='left'
-        wheel_l = -160 #-160:20: 160 //these are the wheel rad/s at MOTOR SIDE
-        change_interval = 6.
-        increment = 40.
+        wheel_l = -160. #-160:20: 160 //these are the wheel rad/s at MOTOR SIDE
+        change_interval = 2.
+        increment = 40   # it was = 40
 
         dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
-        wheel_r = np.arange(-160, 160, increment)       
+        wheel_r = np.arange(-160., 160., increment)       
         time = 0
         i = 0
   
@@ -97,6 +99,8 @@ def generate_launch_description():
             time = np.round(time +dt,3)
             wheel_l_vec.append(wheel_l)
             wheel_r_vec.append(wheel_r[i])
+            v_vec.append(0.0)
+            omega_vec.append(0.0)
             #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
             if time > ((1+i)*change_interval):
                 i +=1
@@ -112,6 +116,7 @@ def generate_launch_description():
         bag_string = 'bagfiles/ol_'
         param_string = 'wheel_l_%1.0f'%(wheel_l)
         bag_name = bag_string + param_string + '.bag'
+
 
     optitrack_node = model_conv_node = Node(
         package="optitrack_interface",

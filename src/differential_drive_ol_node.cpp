@@ -52,41 +52,50 @@ private:
 		if (strcmp(ident_type.c_str(), "wheels")==0)
 		{
 			
+			
 			motor_vel_left = wheel_l_des.at(iter);
 			motor_vel_right = wheel_r_des.at(iter);
-
+			std::cout<<RED<<"iter: " <<iter<<" motor_vel_left: "<<motor_vel_left<<" motor_vel_right: "<<motor_vel_right<< RESET<<std::endl;
+			
+			
 			//IMPORTANT map after gearbot befor computing v omega!
-			double wheel_vel_left = motor_vel_left*Model->gearbox;
-			double wheel_vel_right = motor_vel_right*Model->gearbox;
-			Model->setDifferentialSpeed(wheel_vel_left, wheel_vel_right);
+			double wheel_vel_left = motor_vel_left/Model->gearbox;
+			double wheel_vel_right = motor_vel_right/Model->gearbox;
+			std::cout<<RED<<" wheel_vel_left: "<<wheel_vel_left<<" wheel_vel_right: "<<wheel_vel_right<< RESET<<std::endl;
+
+			Model->setDifferentialSpeed(wheel_vel_left, wheel_vel_right);		
 			v = Model->getLinearSpeed();
 			omega = Model->getAngularSpeed();
+			std::cout<<RED<<" v: "<<v<<" omega: "<<omega<< RESET<<std::endl;
 		} 
 		
 		if (strcmp(ident_type.c_str(), "v_omega")==0)
 		{
-
+			
+			std::cout<<RED<<"iter: " <<iter<<RESET<<std::endl;
 			v = longitudinal_velocity.at(iter);
 			omega = angular_velocity.at(iter);
 			Model->setUnicycleSpeed(v, omega);
 			motor_vel_left  = Model->getLeftMotorRotationalSpeed();
 			motor_vel_right = Model->getRightMotorRotationalSpeed();	
+			std::cout<<RED<<" v: "<<v<<" omega: "<<omega<< RESET<<std::endl;
+			std::cout<<RED<<" motor_vel_left: "<<motor_vel_left<<" motor_vel_right: "<<motor_vel_right<< RESET<<std::endl;
+
 		}
 
-		motor_vel_left += sign(motor_vel_left)*deadband;
-		motor_vel_right += sign(motor_vel_right)*deadband;
+		// motor_vel_left += sign(motor_vel_left)*deadband;
+		// motor_vel_right += sign(motor_vel_right)*deadband;
 		msg_cmd.header.stamp = this->get_clock()->now();
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = std::vector<double>{
 			motor_vel_left, 
-			motor_vel_right
-		};
+			motor_vel_right};
         pub_wheel_cmd->publish(msg_cmd);
 
-		std_msgs::msg::Float64MultiArray msg_des_vel;
-		msg_des_vel.data.push_back(v);  
-		msg_des_vel.data.push_back(omega);
-		pub_des_vel->publish(msg_des_vel);
+		// std_msgs::msg::Float64MultiArray msg_des_vel;
+		// msg_des_vel.data.push_back(v);  
+		// msg_des_vel.data.push_back(omega);
+		// pub_des_vel->publish(msg_des_vel);
 
         iter++;
     }
