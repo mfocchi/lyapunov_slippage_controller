@@ -92,9 +92,9 @@ def generate_launch_description():
         dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
 
         if wheel_l>=0:
-            wheel_r = np.arange(160., -160., -increment)  
+            wheel_r = np.arange(160., -160.-increment, -increment)  
         else:     
-            wheel_r = np.arange(-160., 160., increment)       
+            wheel_r = np.arange(-160., 160.+increment, increment)       
         time = 0
         i = 0
   
