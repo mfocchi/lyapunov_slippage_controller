@@ -20,6 +20,9 @@
 #include "lyapunov_slippage_controller/differential_drive_model.h"
 #include "lyapunov_slippage_controller/error_codes.h"
 #include "optim_interfaces/srv/optim.hpp" //custom service call
+#include <iostream>
+ 
+
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
@@ -35,6 +38,12 @@
 #define prt_vec(x) for( int i = 0; i < x.size(); i++) {std::cout << x[i] << " \n";};
 
 
+//regressor
+#include "wrapped_calcer.h"
+#include <string>
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
+using std::cout;
 using namespace std::chrono_literals;
 // specify the level of prints during the execution of the code ABSENT, DEBUG, MINIMAL
 const Verbosity code_verbosity_sub = ABSENT; 
@@ -91,6 +100,12 @@ private:
 
 	bool generate_ref_traj = false;
 
+	//slippage regressor
+	ModelCalcerWrapper calcer_beta_l; // load model from file
+	ModelCalcerWrapper calcer_beta_r; // load model from file
+	ModelCalcerWrapper calcer_alpha; // load model from file   
+    
+	
 
 	void timerCmdCallback()
     {
@@ -518,40 +533,49 @@ private:
 	Eigen::Vector2d computeLongSlipCompensation(const double ideal_wheel_L,const double ideal_wheel_R, const Eigen::Vector2d& u) const
 	{
 	
-	    double R = computeTurningRadius(u(0), u(1));
-		// compute track velocity from encoder
+	    // double R = computeTurningRadius(u(0), u(1));
+		// // compute track velocity from encoder
 		double  v_enc_l, v_enc_r;
 		v_enc_l = Model->wheel_radius/Model->gearbox*ideal_wheel_L;
         v_enc_r = Model->wheel_radius/Model->gearbox*ideal_wheel_R;
 
-		// estimate beta_inner, beta_outer from turning radius
-		double a0, a1, beta_inner, beta_outer;
-		if(R >= 0.0) // turning left, left wheel is inner there is discontinuity
-		{
-			a0 = this->beta_slip_inner_coefficients_left.at(0);
-			a1 = this->beta_slip_inner_coefficients_left.at(1);
-			beta_inner = a0*exp(a1*R);
-			v_enc_l-=beta_inner;
+		// // estimate beta_inner, beta_outer from turning radius
+		// double a0, a1, beta_inner, beta_outer;
+		// if(R >= 0.0) // turning left, left wheel is inner there is discontinuity
+		// {
+		// 	a0 = this->beta_slip_inner_coefficients_left.at(0);
+		// 	a1 = this->beta_slip_inner_coefficients_left.at(1);
+		// 	beta_inner = a0*exp(a1*R);
+		// 	v_enc_l-=beta_inner;
 
-			a0 = this->beta_slip_outer_coefficients_left.at(0);
-			a1 = this->beta_slip_outer_coefficients_left.at(1);
-			beta_outer = a0*exp(a1*R);
-			v_enc_r+=beta_outer;
-			//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
-		}
-		else // turning right , left wheel is outer
-		{
-			a0 = this->beta_slip_inner_coefficients_right.at(0);
-			a1 = this->beta_slip_inner_coefficients_right.at(1);
-			beta_inner = a0*exp(a1*R);
-			v_enc_r-=beta_inner;
+		// 	a0 = this->beta_slip_outer_coefficients_left.at(0);
+		// 	a1 = this->beta_slip_outer_coefficients_left.at(1);
+		// 	beta_outer = a0*exp(a1*R);
+		// 	v_enc_r+=beta_outer;
+		// 	//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
+		// }
+		// else // turning right , left wheel is outer
+		// {
+		// 	a0 = this->beta_slip_inner_coefficients_right.at(0);
+		// 	a1 = this->beta_slip_inner_coefficients_right.at(1);
+		// 	beta_inner = a0*exp(a1*R);
+		// 	v_enc_r-=beta_inner;
 		
-			a0 = this->beta_slip_outer_coefficients_right.at(0);
-			a1 = this->beta_slip_outer_coefficients_right.at(1);
-			beta_outer = a0*exp(a1*R);
-			v_enc_l+=beta_outer;
-			//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
-		}
+		// 	a0 = this->beta_slip_outer_coefficients_right.at(0);
+		// 	a1 = this->beta_slip_outer_coefficients_right.at(1);
+		// 	beta_outer = a0*exp(a1*R);
+		// 	v_enc_l+=beta_outer;
+		// 	//std::cout <<RED<<"beta_inner="<<beta_inner<<" beta_outer="<< beta_outer <<RESET<<std::endl;
+		// }
+
+  		std::vector<float> features = {(float)ideal_wheel_L, (float)ideal_wheel_R};    
+		double beta_l = calcer_beta_l.Calc(features);
+		double beta_r = calcer_beta_r.Calc(features);
+		std::cout <<BLUE<< "beta_l: " << beta_l << "   beta_r:   " <<beta_r<<RESET<< std::endl;
+		v_enc_l+=beta_l;
+		v_enc_r+=beta_r;
+
+		//std::cout<<RED<<"beta_l beta_r:  "<<results << RESET<<std::endl;
 		Eigen::Vector2d wheel_speed_comp;
 		wheel_speed_comp(0) = Model->gearbox / Model->wheel_radius* v_enc_l;
 		wheel_speed_comp(1) = Model->gearbox / Model->wheel_radius* v_enc_r;
@@ -683,8 +707,26 @@ public:
 		
 		Ctrl = std::make_shared<LyapController>(Kp, Ktheta, dt); 
 		Model.reset(new DifferentialDriveModel(r, d, gear_ratio));
-	
-		
+
+		// regressors
+		std::string model_beta_l =  ament_index_cpp::get_package_share_directory("lyapunov_slippage_controller") + "/models/model_beta_l.cbm";
+		std::string model_beta_r =  ament_index_cpp::get_package_share_directory("lyapunov_slippage_controller") + "/models/model_beta_r.cbm";
+	    std::string model_alpha =  ament_index_cpp::get_package_share_directory("lyapunov_slippage_controller") + "/models/model_alpha.cbm";   
+
+		calcer_beta_l.init_from_file(model_beta_l.c_str());
+		calcer_beta_r.init_from_file(model_beta_r.c_str());
+		calcer_alpha.init_from_file(model_alpha.c_str());
+
+		//debug
+		//std::cout<<"Loaded model with " << calcer_beta_l.GetTreeCount() << " trees, " << calcer_beta_l.GetFloatFeaturesCount() << " float features and " << calcer_beta_l.GetCatFeaturesCount() << " categorical features" << std::endl;
+		// Batch model evaluation
+    	// std::vector<float> floatFeatures =  {0.5, 0.3};
+		// // Single object model evaluationS
+		// double beta_l = calcer_beta_l.Calc(floatFeatures);
+		// double beta_r = calcer_beta_r.Calc(floatFeatures);
+		// double alpha = calcer_alpha.Calc(floatFeatures);	
+		// std::cout << "beta_l: " << beta_l << "   beta_r:   " <<beta_r<<"   alpha:   "<<alpha<< std::endl;
+
 	}
     
 	std::string getPlannerType()

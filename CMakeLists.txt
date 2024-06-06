@@ -78,6 +78,17 @@ target_include_directories(feedbackTester PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+#adding catboost dependency
+set(CATBOOST_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+set(CATBOOST_LIB "libcatboostmodel.so")
+include_directories(include)
+target_link_libraries(slippage_controller_node ${CATBOOST_LIB_PATH}/${CATBOOST_LIB})
+
+# Set the RPATH to include the directory where the .so file is located
+set_target_properties(slippage_controller_node PROPERTIES
+  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 ament_target_dependencies(differential_drive_ol_node 
   Eigen3 
@@ -137,6 +148,17 @@ client_service_call_optimizer
 install(DIRECTORY  
    config
    DESTINATION share/${PROJECT_NAME}
+)
+
+install(FILES ${CATBOOST_LIB_PATH}/${CATBOOST_LIB}
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
+
+install(DIRECTORY
+  models
+  DESTINATION share/${PROJECT_NAME}
 )
 
 
