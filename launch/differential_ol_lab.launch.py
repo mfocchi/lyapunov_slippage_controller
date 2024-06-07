@@ -16,7 +16,8 @@ def generate_launch_description():
     wheel_l_vec = []
     wheel_r_vec = []
 
-    ident_type='wheels'# "v_omega"
+    ident_type='v_omega'# "v_omega"
+    alpha_dot_ident = True
     #########################
     #fixed
     ###########################
@@ -34,52 +35,81 @@ def generate_launch_description():
 
    
     if ident_type=='v_omega':
-        ##################################
-        #variable radius of curvature (change with time)
-        #######################################
-        #max speed of wheels (motors) is 1500 rpm and 157 rad /s => max omega is 1
-        #R = [0:0.1: 0.4]; in matlab with coppeliasim with only turning left
-        R_initial = 0.1    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
-        R_final = 0.325    # it was = 0.6
-        turning='left'
-        dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
-        long_v = 0.15  # [m/s]   #0.05:0.025:0.15
-        change_interval = 6.
-        increment = 0.025       # it was = 0.05
-        turning_radius = np.arange(R_initial, R_final, increment)
-        # turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
-        # turning_radius_3 = np.append(turning_radius_2 , np.arange(R_initial+increment/3, R_final-2*increment/3, increment))
-        turning_radius_vec = turning_radius
+        if alpha_dot_ident:
+            experiment_duration = 5.
+            dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
+            long_v = 0.3
+            omega_max =  -0.3220
+            ang_w = np.arange(-omega_max, omega_max, np.floor(experiment_duration/dt))
+            i = 0
+            while True:
+                omega_vec.append(ang_w[i])
+                v_vec.append(long_v)
+                wheel_l_vec.append(0.0)
+                wheel_r_vec.append(0.0)
+                i +=1
+                if i == len(ang_w):
+                    break
 
-        #turning left
-        if turning=='left':
-            ang_w = np.round(long_v / turning_radius_vec, 3)  # [rad/s]
-        else:
-        #turning right
-            ang_w = -np.round(long_v / turning_radius_vec, 3)  # [rad/s]
-     
-        time = 0
-        i = 0
-        while True:
-            time = np.round(time +dt,3)
-            omega_vec.append(ang_w[i])
-            v_vec.append(long_v)
+            v_vec.append(0.0)
+            omega_vec.append(0.0)
+            #needs to be filled in otherwise ros2 complains
             wheel_l_vec.append(0.0)
             wheel_r_vec.append(0.0)
-            #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
-            if time > ((1+i)*change_interval):
-                i +=1
-            if i == len(turning_radius_vec):
-                break
-        v_vec.append(0.0)
-        omega_vec.append(0.0)
-        #needs to be filled in otherwise ros2 complains
-        wheel_l_vec.append(0.0)
-        wheel_r_vec.append(0.0)
+            bag_string = 'bagfiles/ol_'
+            param_string = 'long_v%1.0f_omega_max%1.2f' % (long_v, omega_max)
+            bag_name = bag_string + param_string + '.bag'
 
-        bag_string = 'bagfiles/ol_'
-        param_string = 'long_v%1.0f_Rinit%1.1f_Rend%1.1f_' % (100*long_v, 100*R_initial, 100*R_final)
-        bag_name = bag_string + param_string +  turning + '.bag'
+        else: 
+            ##################################
+            #variable radius of curvature (change with time)
+            #######################################
+            #max speed of wheels (motors) is 1500 rpm and 157 rad /s => max omega is 1
+            #R = [0:0.1: 0.4]; in matlab with coppeliasim with only turning left
+            R_initial = 0.1    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
+            R_final = 0.325    # it was = 0.6
+            turning='left'
+            dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
+            long_v = 0.15  # [m/s]   #0.05:0.025:0.15
+            change_interval = 6.
+            increment = 0.025       # it was = 0.05
+            turning_radius = np.arange(R_initial, R_final, increment)
+            # turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
+            # turning_radius_3 = np.append(turning_radius_2 , np.arange(R_initial+increment/3, R_final-2*increment/3, increment))
+            turning_radius_vec = turning_radius
+
+            #turning left
+            if turning=='left':
+                ang_w = np.round(long_v / turning_radius_vec, 3)  # [rad/s]
+            else:
+            #turning right
+                ang_w = -np.round(long_v / turning_radius_vec, 3)  # [rad/s]
+        
+            ang_w = np.arange(R_initial, R_final, increment)
+
+            time = 0
+            i = 0
+            while True:
+                time = np.round(time +dt,3)
+                omega_vec.append(ang_w[i])
+                v_vec.append(long_v)
+                wheel_l_vec.append(0.0)
+                wheel_r_vec.append(0.0)
+                #detect_switch = not(round(math.fmod(time,change_interval),3) >0)
+                if time > ((1+i)*change_interval):
+                    i +=1
+                if i == len(turning_radius_vec):
+                    break
+            v_vec.append(0.0)
+            omega_vec.append(0.0)
+            #needs to be filled in otherwise ros2 complains
+            wheel_l_vec.append(0.0)
+            wheel_r_vec.append(0.0)
+
+            bag_string = 'bagfiles/ol_'
+            param_string = 'long_v%1.0f_Rinit%1.1f_Rend%1.1f_' % (100*long_v, 100*R_initial, 100*R_final)
+            bag_name = bag_string + param_string +  turning + '.bag'
+
 
     if ident_type=='wheels':
         ####################################
