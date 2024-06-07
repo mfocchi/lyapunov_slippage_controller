@@ -36,12 +36,19 @@ def generate_launch_description():
    
     if ident_type=='v_omega':
         if alpha_dot_ident:
-            experiment_duration = 5.
+            experiment_duration = 6.
             dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
-            long_v = 0.3
-            omega_max =  -0.3220
-            ang_w = np.arange(-omega_max, omega_max, np.floor(experiment_duration/dt))
+            long_v = 0.2
+            omega_max =  0.6520
+            ang_w = np.linspace(-omega_max, omega_max, int(experiment_duration/dt))
             i = 0
+            for i in range(400):
+                omega_vec.append(-omega_max)
+                v_vec.append(long_v)
+                wheel_l_vec.append(0.0)
+                wheel_r_vec.append(0.0)
+
+            i = 0    
             while True:
                 omega_vec.append(ang_w[i])
                 v_vec.append(long_v)
@@ -49,15 +56,21 @@ def generate_launch_description():
                 wheel_r_vec.append(0.0)
                 i +=1
                 if i == len(ang_w):
-                    break
-
+                    break       
+            i = 0
+            for i in range(400):
+                omega_vec.append(omega_max)
+                v_vec.append(long_v)
+                wheel_l_vec.append(0.0)
+                wheel_r_vec.append(0.0)
+            print(omega_vec)
             v_vec.append(0.0)
             omega_vec.append(0.0)
             #needs to be filled in otherwise ros2 complains
             wheel_l_vec.append(0.0)
             wheel_r_vec.append(0.0)
             bag_string = 'bagfiles/ol_'
-            param_string = 'long_v%1.0f_omega_max%1.2f' % (long_v, omega_max)
+            param_string = 'long_v%1.1f_omega_max%1.2f' % (long_v, omega_max)
             bag_name = bag_string + param_string + '.bag'
 
         else: 
