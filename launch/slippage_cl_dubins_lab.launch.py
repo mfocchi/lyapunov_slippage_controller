@@ -73,12 +73,14 @@ def generate_launch_description():
             {"pose_init_m_m_rad" : pose_init},
             {'automatic_pose_init': True},
             {'time_for_pose_init_s': 1.0},
-            {'side_slip_angle_coefficients_left': [-0.3465,   -3.2004]}, #this are for left turn positive radius
-            {'side_slip_angle_coefficients_right': [0.3465 ,  3.2004]}, #this are for right turn negative radius
-            {'beta_slip_outer_coefficients_left': [ 0.0473 ,  -1.8081]},#this are for right turn negative radius
-            {'beta_slip_outer_coefficients_right': [ 0.0857,   3.58]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_left': [ 0.0532 ,  -2.2327]},#this are for left turn positive radius
-            {'beta_slip_inner_coefficients_right': [0.0502 ,   2.3925]},#this are for right turn negative radius
+             #this are for left turn positive radius
+            {'side_slip_angle_coefficients_left': [ -0.3795,   -3.3784]},
+            {'beta_slip_inner_coefficients_left': [ -0.0579,   -2.4456]},
+            {'beta_slip_outer_coefficients_left': [  0.0588 ,  -2.6375]},
+            #this are for right turn negative radius   
+            {'side_slip_angle_coefficients_right': [ 0.4587,    3.8471]}, 
+            {'beta_slip_inner_coefficients_right': [ -0.0618 ,   3.0089]},
+            {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
             {'consider_slippage': True},
             {'planner_type': "optim"},#dubins/optim
         ],

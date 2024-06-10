@@ -546,7 +546,7 @@ private:
 		// 	a0 = this->beta_slip_inner_coefficients_left.at(0);
 		// 	a1 = this->beta_slip_inner_coefficients_left.at(1);
 		// 	beta_inner = a0*exp(a1*R);
-		// 	v_enc_l-=beta_inner;
+		// 	v_enc_l+=beta_inner;
 
 		// 	a0 = this->beta_slip_outer_coefficients_left.at(0);
 		// 	a1 = this->beta_slip_outer_coefficients_left.at(1);
@@ -559,7 +559,7 @@ private:
 		// 	a0 = this->beta_slip_inner_coefficients_right.at(0);
 		// 	a1 = this->beta_slip_inner_coefficients_right.at(1);
 		// 	beta_inner = a0*exp(a1*R);
-		// 	v_enc_r-=beta_inner;
+		// 	v_enc_r+=beta_inner;
 		
 		// 	a0 = this->beta_slip_outer_coefficients_right.at(0);
 		// 	a1 = this->beta_slip_outer_coefficients_right.at(1);
