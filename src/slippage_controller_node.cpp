@@ -57,12 +57,12 @@ class SlippageControllerNode : public CoppeliaSimNode
 {
 private:
     rclcpp::TimerBase::SharedPtr timer_cmd;
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_cmd;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_motor_cmd;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_trk_error;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_reference;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_actual;
 	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_commands;	
-	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_commands;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_commands;	//v_des omega_des
 	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_alpha;
 	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub;
     LyapControllerPtr Ctrl;
@@ -117,7 +117,7 @@ private:
 		sensor_msgs::msg::JointState msg_cmd;
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = {cmd(0), cmd(1)};
-		pub_cmd->publish(msg_cmd);
+		pub_motor_cmd->publish(msg_cmd);
 
 		Eigen::Vector3d tracking_error= getTrackingErrorMsg();
 		geometry_msgs::msg::Vector3Stamped msg_err;
@@ -282,6 +282,8 @@ private:
 		double e_xy  = sqrt(pow(Ctrl->e_x, 2) + pow(Ctrl->e_y, 2));
 		this->alpha = computeSideSlipAngle(u_des);
 
+		std::cout << RED << "alpha=" << this->alpha << RESET<<std::endl;
+
 		du(0) = -Ctrl->Kp * e_xy * cos(psi  - (pose(2) + alpha) );
 		du(1) = -v_d * e_xy * 1/(cos((Ctrl->e_theta+alpha)/2))*sin(psi- (alpha+beta)/2)- Ctrl->Ktheta * sin(Ctrl->e_theta+alpha) ;
 		u(0) = (u_des(0) + du(0))*cos(alpha);   
@@ -309,7 +311,7 @@ private:
 		}
 
 		Ctrl->endReached();
-		return motor_vel;
+		return motor_vel_compensated;
     }
 
 
@@ -506,16 +508,12 @@ private:
 	
 		double R = computeTurningRadius(u(0), u(1));
 			
-
-		if(code_verbosity_pub == DEBUG)
-		{
-			std::cout << "R=" << R << std::endl;
-		}
+		std::cout << RED << "R=" << R << RESET<<std::endl;
 		
 		double a0,a1;
 
 	
-		if(R > 0.0) // turning left (alpha negative)
+		if(R >= 0.0) // turning left (alpha negative)
 		{
 				a0 = this->side_slip_angle_coefficients_left.at(0);
 				a1 = this->side_slip_angle_coefficients_left.at(1);
@@ -527,7 +525,7 @@ private:
 			a1 = this->side_slip_angle_coefficients_right.at(1);	
 		
 		}
-		return  a0*exp(a1*R);;
+		return  a0*exp(a1*R);
 	}
 	
 	Eigen::Vector2d computeLongSlipCompensation(const double ideal_wheel_L,const double ideal_wheel_R, const Eigen::Vector2d& u) const
@@ -766,7 +764,7 @@ public:
 		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
 		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
 
-		pub_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/command", qos_ctrl);
+		pub_motor_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/motor_command", qos_ctrl);
 		pub_trk_error = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/tracking_error", qos_ctrl);
 		pub_actual = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_act", qos_ctrl);
 		pub_reference = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_ref", qos_ctrl);
@@ -898,9 +896,14 @@ int main(int argc, char ** argv)
 		request->x0 = 0.0;
 		request->y0 = 0.0;
 		request->theta0 = -0.0;
-		request->xf = -0.2758;
-		request->yf = -3.1238;
-		request->thetaf = 0.9638;
+		//go right 
+		// request->xf = 0.5; 
+		// request->yf = -1.1238;
+		// request->thetaf =0.638;
+
+		request->xf = 0.5; 
+		request->yf = 1.1238;
+		request->thetaf =-0.3;
 		request->plan_type = SlippageCtrl->getPlannerType();
 
 		

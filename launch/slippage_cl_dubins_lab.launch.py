@@ -26,9 +26,9 @@ def generate_launch_description():
 
     #override with fixed vel 
     longitudinal_velocity = 0.2
-    angular_velocity1 = 0.3
-    angular_velocity2 = -0.6
-    exp_duration = 8.
+    angular_velocity1 = 0.4
+    angular_velocity2 = -0.4
+    exp_duration = 12.
     n = int(exp_duration/path_gen_dt)
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
     omega_vec = np.linspace(angular_velocity1,angular_velocity1, int(n/2)).tolist()
@@ -82,7 +82,7 @@ def generate_launch_description():
             {'beta_slip_inner_coefficients_right': [ -0.0618 ,   3.0089]},
             {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
             {'consider_slippage': True},
-            {'planner_type': "optim"},#dubins/optim
+            {'planner_type': "dubins"},#dubins/optim
         ],
         on_exit=launch.actions.Shutdown(),
     )
