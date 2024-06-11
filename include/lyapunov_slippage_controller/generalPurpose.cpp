@@ -197,11 +197,16 @@ double angleWithin2PI(double angle)
 
 double computeTurningRadius(double v, double omega)
 {
-    if(omega == 0.0)
-        return 0.0;
+
+    if((omega == 0.0) && ( v != 0.0))
+        return 1e8*sign(v);
+    else if ((omega == 0.0) && ( v == 0.0))
+    {
+       return 1e8;
+    }
     else
     {
-        return v / (omega+0.00001);
+        return v / (omega);
     }
 }
 
