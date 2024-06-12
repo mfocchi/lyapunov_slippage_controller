@@ -26,10 +26,6 @@
 
 #define NANO 0.000000001
 #define QUEUE_DEPTH_OPTITRACK 2
-#define MAX_LONG_SLIP 0.8 // 1 but problem with singularities
-#define MIN_LONG_SLIP -10
-#define SIDE_SLIP_EPSILON 0.01
-#define LONG_SLIP_EPSILON 0.01
 
 #define RESET   "\033[0m"
 #define RED     "\033[31m"      /* Red */
@@ -61,8 +57,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_trk_error;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_reference;
 	rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_actual;
-	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_commands;	
-	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_commands;	//v_des omega_des
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_v_omega;	
+	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_des_v_omega;	//v_des omega_des
 	rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pub_alpha;
 	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub;
     LyapControllerPtr Ctrl;
@@ -73,6 +69,7 @@ private:
 
 	Eigen::Vector2d u_des;
 	Eigen::Vector2d u;
+	Eigen::Vector3d pose_ref;
 
 
 	//side slip
@@ -115,6 +112,7 @@ private:
 		}
 		Eigen::Vector2d cmd = (enable_slippage) ? trackTrajectorySlippage() : trackTrajectoryClassic();
 		sensor_msgs::msg::JointState msg_cmd;
+		msg_cmd.header.stamp = this->get_clock()->now();
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
 		msg_cmd.velocity = {cmd(0), cmd(1)};
 		pub_motor_cmd->publish(msg_cmd);
@@ -136,11 +134,10 @@ private:
 		msg_actual_pos.header.frame_id = "world";		
 		pub_actual->publish(msg_actual_pos);
 
-		geometry_msgs::msg::Vector3Stamped msg_reference_pos;
-		Eigen::Vector3d pose_ref = Ctrl->getPoseDesiredOnTime(getCurrentTime() - t_start);
-		msg_reference_pos.vector.x = pose_ref(0);
-		msg_reference_pos.vector.y = pose_ref(1);
-		msg_reference_pos.vector.z = pose_ref(2);
+		geometry_msgs::msg::Vector3Stamped msg_reference_pos;		
+		msg_reference_pos.vector.x = this->pose_ref(0);
+		msg_reference_pos.vector.y = this->pose_ref(1);
+		msg_reference_pos.vector.z = this->pose_ref(2);
 		msg_reference_pos.header.stamp = this->get_clock()->now();
 		msg_reference_pos.header.frame_id = "world";		
 		pub_reference->publish(msg_reference_pos);
@@ -148,12 +145,12 @@ private:
 		std_msgs::msg::Float64MultiArray msg_commands;
 		msg_commands.data.push_back(u(0));  
 		msg_commands.data.push_back(u(1));
-		pub_commands->publish(msg_commands);
+		pub_v_omega->publish(msg_commands);
 
 		std_msgs::msg::Float64MultiArray msg_des_commands;
 		msg_des_commands.data.push_back(u_des(0));  
 		msg_des_commands.data.push_back(u_des(1));
-		pub_des_commands->publish(msg_des_commands);
+		pub_des_v_omega->publish(msg_des_commands);
 
 		std_msgs::msg::Float64MultiArray msg_alpha;
 		msg_alpha.data.push_back(this->alpha);
@@ -202,67 +199,6 @@ private:
     }
 
 
-	//OLD IMPLEMENTATION
-	// /* It tracks a trajectory defined in terms of velocities. It has to set the current time 
-	// to extract the desired velocities and poses, then it computes the control with the standard
-	// controller and finally the effects of slippage are compensated by a transformer */
-    // Eigen::Vector2d trackTrajectorySlippage()
-    // {
-
-
-	// 	// Ctrl->setCurrentTime(getCurrentTime() - t_start);
-	// 	// u = Ctrl->run(this->pose);
-	// 	// if(code_verbosity_pub == DEBUG)
-	// 	// 	std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-	// 	// // conversion block from unicycle to differential drive
-	// 	// Model->setUnicycleSpeed(u(0), u(1));
-	// 	// Eigen::Vector2d motor_vel;
-	// 	// motor_vel << Model->getLeftMotorRotationalSpeed(), Model->getRightMotorRotationalSpeed();
-	// 	// if(code_verbosity_pub == DEBUG)
-	// 	// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
-
-	// 	// // compute an estimation of the longitudinal and lateral slips
-	// 	Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha_prev_1.data<);
-	// 	Eigen::Vector3d pose_bar = this->pose + pose_offset; 
-	
-	// 	Ctrl->setCurrentTime(getCurrentTime() - t_start);
-		
-	// 	u_bar = Ctrl->run(pose_bar);
-	
-	// 	// compute commands with side slip compensation
-	// 	u = convertskidSteering(u_bar);
-	// 	if(code_verbosity_pub == DEBUG)
-	// 	 	std::cout<<"u_bar control input [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-	// 		std::cout<<"u control input [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << std::endl;
-	// 	// conversion block from unicycle to differential drive
-	// 	Model->setUnicycleSpeed(u(0), u(1));
-	// 	double motor_vel_L = Model->getLeftMotorRotationalSpeed();
-	// 	double motor_vel_R = Model->getRightMotorRotationalSpeed();
-		
-	// 	// // compensate the longitudinal slip
-	// 	// // double motor_vel_comp_L = motor_vel_L / (1-this->i_L_prev);
-	// 	// // double motor_vel_comp_R = motor_vel_R / (1-this->i_R_prev);	
-	// 	// //Model->setDifferentialSpeed(motor_vel_comp_L, motor_vel_comp_R);		
-	// 	// //Eigen::Vector2d motor_vel(motor_vel_comp_L, motor_vel_comp_R);
-		
-	// 	// //TESTING 2 : do not compensate long slip (uncomment the following and comment the previous)
-	// 	Model->setDifferentialSpeed(motor_vel_L, motor_vel_L);
-	// 	Eigen::Vector2d motor_vel(motor_vel_L, motor_vel_R);
-
-	// 	// // estimate alpha, alpha_dot
-	// 	// //compute alpha based on slip compensated control input 
-	// 	// updateSlipVariables(u);
-	// 	// // TESTING 1: compute alpha based on desired control input
-	// 	// updateSlipVariables(Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start)); 
-		
-		
-	// 	// if(code_verbosity_pub == DEBUG)
-	// 	// 	std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel(0) << " RIGHT " << motor_vel(1) << std::endl;
-
-	// 	return motor_vel;
-    // }
-
-
 	 Eigen::Vector2d trackTrajectorySlippage()
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
@@ -272,8 +208,8 @@ private:
 		u.setZero();
 		du.setZero();
 			
-		u_des = Ctrl->getControlInputDesiredOnTime(Ctrl->current_time);
-		Eigen::Vector3d pose_ref = Ctrl->getPoseDesiredOnTime(Ctrl->current_time);
+		u_des = Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start);
+		pose_ref = Ctrl->getPoseDesiredOnTime(getCurrentTime() - t_start);
 		Ctrl->updateTrackingErrors(pose_ref, pose);
 
 		double beta = (this->pose(2) + pose_ref(2));
@@ -311,91 +247,8 @@ private:
 		}
 
 		Ctrl->endReached();
-		return motor_vel_compensated;
+		return motor_vel;
     }
-
-
-
-/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
-	to extract the desired velocities and poses, then it computes the control with the standard
-	controller and finally the effects of slippage are compensated by a transformer */
-    // Eigen::Vector2d trackTrajectorySlippageOld()
-    // {
-	// 	Ctrl->setCurrentTime(getCurrentTime() - t_start);
-	// 	std::cout<<"---------------------------------------------------------- "<< std::endl;
-
-
-    //     //  estimate slippage params alpha, alpha_dot. Note that all estimates are computed using the controller output and are used the next cycle, thus
-	// 	// the have a delay of one step
-	// 	//alpha 
-	// 	double dt = this->get_parameter("pub_dt_ms").as_int()/1000.0;
-	// 	double filter_gain = dt/(dt+0.005);
-
-	// 	// Eigen::Vector2d u_des;
-	// 	// u_des << 0.1, 0.3;
-
-	// 	this->alpha = computeSideSlipAngle(u);
-	// 	//filter is always positive
-	// 	this->alpha_f = (1.-filter_gain)*this->alpha_f + filter_gain * abs(this->alpha);
-
-	// 	//alpha dot	is computed on filtered value and the sign is recovered from omega (radius)
-	// 	this->alpha_dot = sign(u(1)) * (this->alpha_f  - alpha_f_old) / dt;
-	// 	this->alpha_f_old = this->alpha_f;
-
-	// 	// // compute an estimation of the longitudinal and lateral slips
-	// 	Eigen::Vector3d pose_offset(0.0, 0.0, this->alpha);
-	// 	Eigen::Vector3d pose_bar = this->pose + pose_offset; //theta+alpha
-		
-	// 	//make theta+alpha track theta_des
-	// 	u_bar = Ctrl->run(pose_bar);
-
-	
-		
-	// 	// // compute commands with side slip compensation
-	// 	u(0) = u_bar(0) * cos(sign(u(1))*this->alpha_f);
-
-	// 	// if ((getCurrentTime() - t_start)< 0.05)
-	// 	// {			
-	// 	// 	std::cout <<RED<<"Not applying alpha dot"<<RESET<<std::endl;
-	// 	// 	u(1) = u_bar(1);
-	// 	// }
-	// 	// else{
-			
-	// 	// 	u(1) = u_bar(1) - 0.1*sign(alpha)*this->alpha_dot;
-	// 	// }
-
-	// 	u(1) = u_bar(1) -this->alpha_dot;
-			
-	// 	//no slippage comp			 
-	// 	//u = Ctrl->run(this->pose);
-
-	// 	if(code_verbosity_pub == DEBUG)
-	// 	{
-	// 		std::cout<<"u_bar  [m/s, rad/s]: LIN " << u_bar(0) << " ANG " << u_bar(1) << std::endl;
-	// 		std::cout<<RED<<"u  [m/s, rad/s]: LIN " << u(0) << " ANG " << u(1) << RESET<<std::endl;
-	// 	}
-
-	// 	//compute ideal wheel speed
-	// 	// conversion block from unicycle to differential drive (this assumes there is no longitudinal slippage)
-	// 	double motor_vel_L   = (u(0) - u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
-	//     double motor_vel_R = (u(0) + u(1) * (0.5*Model->wheel_distance))/ Model->wheel_radius*Model->gearbox;
-
-
-
-	// 	Eigen::Vector2d motor_vel_compensated, motor_vel;
-	// 	motor_vel << motor_vel_L, motor_vel_R; //for debug
-	// 	//compute compensated wheel speed after accounting longitudinal slippage
-	// 	motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
-				
-	// 	if(code_verbosity_pub == DEBUG)
-	// 	{
-	// 		std::cout<<"alpha:  " << this->alpha << " alpha_f:  " << this->alpha_f << " alpha_dot " << this->alpha_dot << std::endl;	
-	// 		std::cout<<"Motors control input [rad/s]: LEFT " << motor_vel_L << " RIGHT " << motor_vel_R << std::endl;
-	// 		std::cout<<"Motors control input comp [rad/s]: LEFT " << motor_vel_compensated(0) << " RIGHT " << motor_vel_compensated(1) << std::endl;
-	// 	}
-	// 	return motor_vel_compensated;
-    // }
-
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
 	to extract the desired velocities and poses, then it computes the control with the standard OLyapunov Unicycle
@@ -403,6 +256,8 @@ private:
     Eigen::Vector2d trackTrajectoryClassic()
     {
 		Ctrl->setCurrentTime(getCurrentTime() - t_start);
+		//get this for logging
+		pose_ref = Ctrl->getPoseDesiredOnTime(getCurrentTime() - t_start);
 		u_des = Ctrl->getControlInputDesiredOnTime(getCurrentTime() - t_start);
 		u = Ctrl->run(this->pose);
 		if(code_verbosity_pub == DEBUG)
@@ -432,14 +287,7 @@ private:
 	double getCurrentTime()
 	{
 		double t;
-		if(this->isCoppeliaSimEnabled())
-		{
-			t = this->getSimTime();
-		}
-		else
-		{
-			t = double((this->get_clock()->now()).nanoseconds()) * NANO;
-		}
+		t = double((this->get_clock()->now()).nanoseconds()) * NANO;
 		return t;
 	}
 
@@ -480,8 +328,6 @@ private:
 
 	void setupTrajectory()
 	{
-		
-
 		this->t_start = getCurrentTime();
 		try{
 			if(!this->generate_ref_traj)
@@ -581,57 +427,7 @@ private:
 		return wheel_speed_comp;
 	}
 
-	//OLD
-	// double computeLongSlip(double R, double a0, double a1) const
-	// {
-	// 	double slip;
-	// 	if(abs(a1 + R) <= LONG_SLIP_EPSILON)
-	// 	{
-	// 		// close to singularity
-	// 		if(code_verbosity_pub == DEBUG)
-	// 		{
-	// 			std::cout << "Long Slip: SINGULARITY" << std::endl;
-	// 		}
-	// 		if(abs(a1 + R) * a0 >= 0.0)
-	// 		{
-	// 			slip = MAX_LONG_SLIP;
-	// 		}
-	// 		else
-	// 		{
-	// 			slip = MIN_LONG_SLIP;
-	// 		}
-	// 	}
-	// 	else
-	// 	{
-	// 		slip = a0 / (a1 + R);
-	// 		if(slip > MAX_LONG_SLIP)
-	// 		{
-	// 			slip = MAX_LONG_SLIP;
-	// 		}
-	// 		else if(slip < MIN_LONG_SLIP)
-	// 		{
-	// 			slip = MIN_LONG_SLIP;
-	// 		}
-	// 	}
-	// 	return slip;
-	// }
 
-	
-	void initSlipVariables()
-	{
-		if(this->enable_slippage == false)
-		{
-			return;
-		}
-		Eigen::Vector2d u0 = Ctrl->getControlInputDesiredOnTime(0.0);
-		int dt = this->get_parameter("pub_dt_ms").as_int();
-		
-	
-		this->alpha_dot = 0.0;
-		// init side slip with expected value from desired velocities
-		this->alpha_f_old = computeSideSlipAngle(u0);
-
-	}
 
 
 public:
@@ -655,8 +451,6 @@ public:
 		declare_parameter("time_for_pose_init_s", 0.5);
 		declare_parameter("automatic_pose_init", false);
 		declare_parameter("pose_init_m_m_rad", std::vector<double>({0.0,0.0,0.0}));
-
-
 
 		declare_parameter("side_slip_angle_coefficients_left", std::vector<double>({0.0,0.0,0.0}));
 		declare_parameter("side_slip_angle_coefficients_right", std::vector<double>({0.0,0.0,0.0}));
@@ -687,11 +481,37 @@ public:
 		double Kp = this->get_parameter("Kp").as_double();
 		double Ktheta = this->get_parameter("Ktheta").as_double();
 		double dt = this->get_parameter("dt").as_double();
+		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
 		
 		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
 		this->enable_slippage = this->get_parameter("consider_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
 		this->planner_type = this->get_parameter("planner_type").as_string();
+
+
+
+		//init publishers /subscribers/timers
+		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
+		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
+		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
+
+		pub_motor_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/command", qos_ctrl);
+		pub_trk_error = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/tracking_error", qos_ctrl);
+		pub_actual = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_act", qos_ctrl);
+		pub_reference = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_ref", qos_ctrl);
+		pub_v_omega = this->create_publisher<std_msgs::msg::Float64MultiArray>("/v_omega", qos_ctrl);
+		pub_des_v_omega = this->create_publisher<std_msgs::msg::Float64MultiArray>("/des_v_omega", qos_ctrl);
+		pub_alpha = this->create_publisher<std_msgs::msg::Float64MultiArray>("/alpha_alpha_dot", qos_ctrl);
+
+		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+		"/optitrack/pose", 
+		qos_optitrack, 
+		std::bind(&SlippageControllerNode::poseCallback, this, std::placeholders::_1));
+	
+		timer_cmd = this->create_wall_timer(
+			std::chrono::milliseconds(pub_dt), 
+			std::bind(&SlippageControllerNode::timerCmdCallback, this));
+		
 
 		//side slip
 		side_slip_angle_coefficients_left = this->get_parameter("side_slip_angle_coefficients_left").as_double_array();
@@ -735,7 +555,7 @@ public:
 	void startController(bool generate_reference = false)
 	{
 		this->generate_ref_traj = generate_reference;
-		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
+		
 		std::vector<double> pose_init = this->get_parameter("pose_init_m_m_rad").as_double_array();
 
 		n_samples_pose_init = 0.0;
@@ -748,50 +568,14 @@ public:
 			this->pose << pose_init.at(0), pose_init.at(1), pose_init.at(2);
 			Ctrl->setStateOffset(pose_init.at(0), pose_init.at(1), pose_init.at(2));
 			if(code_verbosity_setup == DEBUG)
-				std::cout << "Initialization procedure for initial pose" << std::endl;
+				std::cout << "Loading desired tajectory" << std::endl;
 			setupTrajectory();
-			if(code_verbosity_setup == DEBUG)
-				std::cout << "COMPLETED" << std::endl;
-			if(code_verbosity_setup == DEBUG)
-				std::cout << "Initialization of slip variables" << std::endl;
-			initSlipVariables();
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "COMPLETED" << std::endl;
 		}
 	
 
-		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
-		auto qos_optitrack = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, QUEUE_DEPTH_OPTITRACK), qos_profile);
-		auto qos_ctrl = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1), qos_profile);
-
-		pub_motor_cmd = this->create_publisher<sensor_msgs::msg::JointState>("/motor_command", qos_ctrl);
-		pub_trk_error = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/tracking_error", qos_ctrl);
-		pub_actual = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_act", qos_ctrl);
-		pub_reference = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("/pose_ref", qos_ctrl);
-		pub_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/commands", qos_ctrl);
-		pub_des_commands = this->create_publisher<std_msgs::msg::Float64MultiArray>("/des_commands", qos_ctrl);
-		pub_alpha = this->create_publisher<std_msgs::msg::Float64MultiArray>("/alpha_alpha_dot", qos_ctrl);
-
-		sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-		"/optitrack/pose", 
-		qos_optitrack, 
-		std::bind(&SlippageControllerNode::poseCallback, this, std::placeholders::_1));
-
-
-
-		timer_cmd = this->create_wall_timer(
-			std::chrono::milliseconds(pub_dt), 
-			std::bind(&SlippageControllerNode::timerCmdCallback, this));
-		
-		if(this->isCoppeliaSimEnabled())
-		{
-			this->enableSyncWithCoppeliaSim();
-			this->startCoppeliaSim();
-			this->setCoppeliaSimRender();
-		}
-		
 		t_start = getCurrentTime();
-
 	}
 
 
@@ -840,9 +624,7 @@ public:
 			setupTrajectory();
 			this->t_start = getCurrentTime();
 
-			if(code_verbosity_setup == DEBUG)
-				std::cout << "Initialization of slip variables" << std::endl;
-			//initSlipVariables();
+		
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "INIT COMPLETED with tstart: " << this->t_start  <<std::endl;
 			return;

@@ -11,20 +11,10 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     ld = LaunchDescription()
 
-
-    #old way to generate dubins
-    # experiment_id = 100
-    # scale_factor = 2.0 # used to calculate the the scale factor
-    # omega_dubins_vec = get_exp_omega_vec(experiment_id, scale_factor)
-    # times_dubins_vec = get_exp_time_vec(experiment_id, scale_factor)
-    # path_gen_dt = 0.005
-    # omega_vec = extract_settings_from_dubins(omega_dubins_vec, times_dubins_vec, path_gen_dt)
-    # n = len(omega_vec)
-    # v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
-    
     path_gen_dt = 0.005
 
-    #override with fixed vel 
+    #THIS PARAMETERS ARE ONLY FOR FFWD TRAJECTORY WITHOUT MATLAB (FIXED VEL)
+    # if you use matlab planning do not consider this!
     longitudinal_velocity = 0.2
     angular_velocity1 = 0.4
     angular_velocity2 = -0.4
@@ -86,26 +76,18 @@ def generate_launch_description():
         ],
         on_exit=launch.actions.Shutdown(),
     )
-    if not Simulation:
-        robot_node = Node(
-            package="maxxii_interface", #old driver was maxxii_interface
-            executable="maxxii_node",
-            name="maxxii_node",
-            output='screen'
-        )
-        ld.add_action(optitrack_node)
-        ld.add_action(robot_node)
-    else:
-        #kill previous instances 
-        os.system("pkill coppeliaSim")
-        os.system("ros2  lifecycle set  /sim_ros2_interface shutdown")
-        os.system("ros2  lifecycle set  /transform_listener shutdown")
-        scene = get_package_share_directory('lyapunov_slippage_controller')+'/config/tractor_ros2.ttt'
-        file = os.getenv("COPPELIASIM_ROOT_DIR")+"/coppeliaSim.sh"+" "+scene+" &"
-        os.system(file)
+    robot_node = Node(
+        package="maxxii_interface", #old driver was maxxii_interface
+        executable="maxxii_node",
+        name="maxxii_node",
+        output='screen'
+    )
+
+    ld.add_action(robot_node) 
+    ld.add_action(optitrack_node)
+    ld.add_action(controller_node)
 
     now = datetime.now()
-
     dt_string = now.strftime("%d-%m-%H-%M-%S")
     param_string = 'exp_'
     bag_string = 'bagfiles/slip_test_'
@@ -114,7 +96,7 @@ def generate_launch_description():
         cmd=['ros2', 'bag', 'record', '-a', '-o%s' %bag_name]
     )
     
-    ld.add_action(controller_node)
+ 
     if RosBagRecord:
         ld.add_action(record_node)
     return ld
