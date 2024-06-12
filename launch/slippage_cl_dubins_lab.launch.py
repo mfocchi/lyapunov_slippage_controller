@@ -72,7 +72,7 @@ def generate_launch_description():
             {"omega_des_radps" : omega_vec},
             {"pose_init_m_m_rad" : pose_init},
             {'automatic_pose_init': True},
-            {'time_for_pose_init_s': 1.0},
+            {'time_for_pose_init_s': 0.6},
              #this are for left turn positive radius
             {'side_slip_angle_coefficients_left': [ -0.3795,   -3.3784]},
             {'beta_slip_inner_coefficients_left': [ -0.0579,   -2.4456]},
