@@ -50,6 +50,7 @@ def generate_launch_description():
         name="ctrl",
         output='screen',
         emulate_tty=True,
+        arguments=['--ros-args', '--log-level', 'ERROR'],
         parameters=[
             {"wheel_radius_m": 0.0856},
             {"wheels_distance_m": 0.606},
