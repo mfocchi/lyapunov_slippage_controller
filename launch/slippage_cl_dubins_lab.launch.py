@@ -74,6 +74,7 @@ def generate_launch_description():
             {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
             {'consider_slippage': True},
             {'planner_type': "dubins"},#dubins/optim
+            {'target_point': [1.5,  2.12, 1.57]},
         ],
         on_exit=launch.actions.Shutdown(),
     )

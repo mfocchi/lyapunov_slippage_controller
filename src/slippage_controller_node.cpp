@@ -440,6 +440,7 @@ public:
 	std::vector<double> x_vec;
 	std::vector<double> y_vec;
 	std::vector<double> theta_vec;
+	std::vector<double> target_point;
 
     SlippageControllerNode() : CoppeliaSimNode("lyapunov_slippage_controller")
     {
@@ -476,6 +477,7 @@ public:
 		// set it to false for classic differential drive model, true for skid-steering control (requires slip models)
 		declare_parameter("consider_side_slippage", true); 
 		declare_parameter("consider_long_slippage", true); 
+		declare_parameter("target_point", std::vector<double>({0.0,0.0,0.0}));				
 		declare_parameter("planner_type", "optim"); 
 				
 		double r = this->get_parameter("sprocket_radius_m").as_double();
@@ -490,9 +492,8 @@ public:
 		this->enable_side_slippage = this->get_parameter("consider_side_slippage").as_bool();
 		this->enable_long_slippage = this->get_parameter("consider_long_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
+		this->target_point = this->get_parameter("target_point").as_double_array();
 		this->planner_type = this->get_parameter("planner_type").as_string();
-
-
 
 		//init publishers /subscribers/timers
 		rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
@@ -682,17 +683,20 @@ int main(int argc, char ** argv)
 		request->x0 = 0.0;
 		request->y0 = 0.0;
 		request->theta0 = -0.0;
+
+
+		//TARGET
 		//go right 
 		// request->xf = 0.5; 
 		// request->yf = -1.1238;
 		// request->thetaf =0.638;
 
-		request->xf = 0.5; 
-		request->yf = 1.1238;
-		request->thetaf =-0.3;
+		request->xf = SlippageCtrl->target_point[0]; 
+		request->yf = SlippageCtrl->target_point[1];
+		request->thetaf = SlippageCtrl->target_point[2];
 		request->plan_type = SlippageCtrl->getPlannerType();
 
-		
+	
 		auto result = client->async_send_request(request);
 
 		std::cout<<BLUE<<"--------------------------------------------------"<<RESET<<std::endl;
