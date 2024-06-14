@@ -77,7 +77,7 @@ def generate_launch_description():
             ##################################
             #variable radius of curvature (change with time)
             #######################################
-            #max speed of wheels (motors) is 1500 rpm and 157 rad /s => max omega is 1
+            #max speed of wheels (motors) is 2000 rpm and 207 rad /s 
             #R = [0:0.1: 0.4]; in matlab with coppeliasim with only turning left
             R_initial = 0.1    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
             R_final = 0.325    # it was = 0.6

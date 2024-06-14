@@ -81,10 +81,9 @@ private:
 	std::vector<double> beta_slip_inner_coefficients_left ;
 	std::vector<double> beta_slip_inner_coefficients_right;
 
-
-
 	bool enable_pose_init;
-	bool enable_slippage;
+	bool enable_long_slippage;
+	bool enable_side_slippage;
 	double n_samples_pose_init;
 	std::string planner_type;
 
@@ -110,7 +109,7 @@ private:
 		{
 			return;// do not publish anything till is initialized
 		}
-		Eigen::Vector2d cmd = (enable_slippage) ? trackTrajectorySlippage() : trackTrajectoryClassic();
+		Eigen::Vector2d cmd = (enable_side_slippage) ? trackTrajectorySlippage() : trackTrajectoryClassic();
 		sensor_msgs::msg::JointState msg_cmd;
 		msg_cmd.header.stamp = this->get_clock()->now();
 		msg_cmd.name = {"left_sprocket", "right_sprocket"};
@@ -237,8 +236,11 @@ private:
 		Eigen::Vector2d motor_vel_compensated, motor_vel;
 		motor_vel << motor_vel_L, motor_vel_R; //for debug
 		//compute compensated wheel speed after accounting longitudinal slippage
-		motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
-				
+		if (enable_long_slippage)
+			motor_vel_compensated = computeLongSlipCompensation(motor_vel_L, motor_vel_R, u);
+		else
+			motor_vel_compensated =motor_vel;
+
 		if(code_verbosity_pub == DEBUG)
 		{
 			std::cout<<"alpha:  " << this->alpha << " alpha_f:  " << this->alpha_f << " alpha_dot " << this->alpha_dot << std::endl;	
@@ -247,7 +249,7 @@ private:
 		}
 
 		Ctrl->endReached();
-		return motor_vel;
+		return motor_vel_compensated;
     }
 
 	/* It tracks a trajectory defined in terms of velocities. It has to set the current time 
@@ -472,7 +474,8 @@ public:
 		//		of the unicycle kinematic model
 		declare_parameter("copy_trajectory", false); 
 		// set it to false for classic differential drive model, true for skid-steering control (requires slip models)
-		declare_parameter("consider_slippage", true); 
+		declare_parameter("consider_side_slippage", true); 
+		declare_parameter("consider_long_slippage", true); 
 		declare_parameter("planner_type", "optim"); 
 				
 		double r = this->get_parameter("sprocket_radius_m").as_double();
@@ -484,7 +487,8 @@ public:
 		int pub_dt = this->get_parameter("pub_dt_ms").as_int();
 		
 		this->enable_pose_init = this->get_parameter("automatic_pose_init").as_bool();
-		this->enable_slippage = this->get_parameter("consider_slippage").as_bool();
+		this->enable_side_slippage = this->get_parameter("consider_side_slippage").as_bool();
+		this->enable_long_slippage = this->get_parameter("consider_long_slippage").as_bool();
 		this->t_pose_init = this->get_parameter("time_for_pose_init_s").as_double();
 		this->planner_type = this->get_parameter("planner_type").as_string();
 
