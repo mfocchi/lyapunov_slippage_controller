@@ -79,9 +79,10 @@ def generate_launch_description():
             {'side_slip_angle_coefficients_right': [ 0.4587,    3.8471]}, 
             {'beta_slip_inner_coefficients_right': [ -0.0618 ,   3.0089]},
             {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
-            {'consider_slippage': True},
             {'planner_type': "dubins"},#dubins/optim
             {'target_point': [1.5,  2.12, 1.57]},
+            {'consider_side_slippage': False},
+            {'consider_long_slippage': False},
         ],
         on_exit=launch.actions.Shutdown(),
     )
