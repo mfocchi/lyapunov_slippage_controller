@@ -164,12 +164,20 @@ def generate_launch_description():
         bag_name = bag_string + param_string + '.bag'
 
 
-    optitrack_node = model_conv_node = Node(
+    optitrack_node =  Node(
         package="optitrack_interface",
         executable="optitrack",
         name="optitrack",
         output='screen',
     )
+
+
+    # optitrack_node =  Node(
+    #     package="qualisys",
+    #     executable="qualisys_node",
+    #     name="optitrack",
+    #     output='screen',
+    # )
 
     controller_node = Node(
         package="lyapunov_slippage_controller",

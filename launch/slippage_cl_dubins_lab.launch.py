@@ -39,6 +39,13 @@ def generate_launch_description():
         name="optitrack",
     )
 
+    # optitrack_node =  Node(
+    #     package="qualisys",
+    #     executable="qualisys_node",
+    #     name="optitrack",
+    #     output='screen',
+    # )
+
     Simulation = False
     RosBagRecord = True
 
