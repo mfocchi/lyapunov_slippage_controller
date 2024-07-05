@@ -15,9 +15,9 @@ def generate_launch_description():
 
     #THIS PARAMETERS ARE ONLY FOR FFWD TRAJECTORY WITHOUT MATLAB (FIXED VEL)
     # if you use matlab planning do not consider this!
-    longitudinal_velocity = 0.2
-    angular_velocity1 = 0.4
-    angular_velocity2 = -0.4
+    longitudinal_velocity = 0.4
+    angular_velocity1 = 0.2
+    angular_velocity2 = -0.2
     exp_duration = 12.
     n = int(exp_duration/path_gen_dt)
     v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
@@ -70,7 +70,7 @@ def generate_launch_description():
             {"omega_des_radps" : omega_vec},
             {"pose_init_m_m_rad" : pose_init},
             {'automatic_pose_init': True},
-            {'time_for_pose_init_s': 0.6},
+            {'time_for_pose_init_s': 0.6}, #if you use matlab it should be at least 2
              #this are for left turn positive radius
             {'side_slip_angle_coefficients_left': [ -0.3795,   -3.3784]},
             {'beta_slip_inner_coefficients_left': [ -0.0579,   -2.4456]},
@@ -79,11 +79,10 @@ def generate_launch_description():
             {'side_slip_angle_coefficients_right': [ 0.4587,    3.8471]}, 
             {'beta_slip_inner_coefficients_right': [ -0.0618 ,   3.0089]},
             {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
-            {'planner_type': "dubins"},#dubins/optim
-            {'target_point': [1.5,  2.12, 1.57]},
-            {'consider_side_slippage': False},
+            {'consider_side_slippage': True},
             {'consider_long_slippage': False},
-            {'target_point': [2.5,  3., 0]},
+            {'planner_type': "optim"},#dubins/optim
+            {'target_point': [2.,  2.5, 0]},
         ],
         on_exit=launch.actions.Shutdown(),
     )

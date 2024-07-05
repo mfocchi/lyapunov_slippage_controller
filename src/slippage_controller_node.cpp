@@ -82,6 +82,7 @@ private:
 	std::vector<double> beta_slip_inner_coefficients_right;
 
 	bool enable_pose_init;
+	bool trajectory_ready = false;
 	bool enable_long_slippage;
 	bool enable_side_slippage;
 	double n_samples_pose_init;
@@ -180,7 +181,7 @@ private:
 		{
 			std::cout << "Pose callback: x=" << x << " y=" << y << " yaw=" << yaw << std::endl;
 		}
-		if(this->enable_pose_init)
+		if(this->enable_pose_init && this->trajectory_ready)
 		{
 			if(code_verbosity_sub == DEBUG)
 			{
@@ -578,7 +579,7 @@ public:
 			if(code_verbosity_setup == DEBUG)
 				std::cout << "COMPLETED" << std::endl;
 		}
-	
+		trajectory_ready = true;
 
 		t_start = getCurrentTime();
 	}
@@ -625,7 +626,7 @@ public:
 			Ctrl->setStateOffset(x, y, yaw);
 			this->enable_pose_init = false;
 			if(code_verbosity_setup == DEBUG)
-				std::cout << "Pose initialized as ["<< pose(0) << ", "<< pose(1) << ", "<< pose(2) << "]"<<std::endl;
+				std::cout <<RED<< "Pose initialized as ["<< pose(0) << ", "<< pose(1) << ", "<< pose(2) << "]"<<RESET<<std::endl;
 			setupTrajectory();
 			this->t_start = getCurrentTime();
 
@@ -662,7 +663,7 @@ int main(int argc, char ** argv)
 	auto client = SlippageCtrl->create_client<optim_interfaces::srv::Optim>("/optim");
 
 
-    while (!client->wait_for_service(std::chrono::seconds(2))) {
+    while (!client->wait_for_service(std::chrono::seconds(3))) {
         if (!rclcpp::ok()) {
             RCLCPP_ERROR(SlippageCtrl->get_logger(), "Interrupted while waiting for the service. Exiting.");
             return 1;
@@ -671,6 +672,7 @@ int main(int argc, char ** argv)
 		//generate trajectory
 		SlippageCtrl->startController(true);
 		start_service = false;
+
 		break;
     }
 
@@ -733,6 +735,7 @@ int main(int argc, char ** argv)
 				SlippageCtrl->startController(false);
 				//override the default discretization of reference
 				SlippageCtrl->setReferenceStepTime(response->dt);
+			
 
 			} else {
 					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Response has failed");
