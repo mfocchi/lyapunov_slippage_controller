@@ -16,8 +16,8 @@ def generate_launch_description():
     wheel_l_vec = []
     wheel_r_vec = []
 
-    ident_type='v_omega'# "v_omega"
-    alpha_dot_ident = True
+    ident_type='wheels'# "v_omega" 'wheels'
+    alpha_dot_ident = False
     #########################
     #fixed
     ###########################
@@ -35,6 +35,7 @@ def generate_launch_description():
 
    
     if ident_type=='v_omega':
+        #alpha dot
         if alpha_dot_ident:
             experiment_duration = 6.
             dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
@@ -73,18 +74,18 @@ def generate_launch_description():
             param_string = 'long_v%1.1f_omega_max%1.2f' % (long_v, omega_max)
             bag_name = bag_string + param_string + '.bag'
 
-        else: 
+        else: #normal
             ##################################
             #variable radius of curvature (change with time)
             #######################################
             #max speed of wheels (motors) is 2000 rpm and 207 rad /s 
             #R = [0:0.1: 0.4]; in matlab with coppeliasim with only turning left
-            R_initial = 0.1    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
-            R_final = 0.325    # it was = 0.6
+            R_initial = 0.15    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
+            R_final = 0.5    # it was = 0.6
             turning='left'
             dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
-            long_v = 0.15  # [m/s]   #0.05:0.025:0.15
-            change_interval = 6.
+            long_v = 0.2  # [m/s]   #0.05:0.025:0.15
+            change_interval = 5.
             increment = 0.025       # it was = 0.05
             turning_radius = np.arange(R_initial, R_final, increment)
             # turning_radius_2 = np.append(turning_radius , np.arange(R_initial+increment/2, R_final-increment/2, increment))
@@ -93,12 +94,12 @@ def generate_launch_description():
 
             #turning left
             if turning=='left':
-                ang_w = np.round(long_v / turning_radius_vec, 3)  # [rad/s]
+                ang_w = np.arange(R_initial, R_final, increment)
             else:
             #turning right
-                ang_w = -np.round(long_v / turning_radius_vec, 3)  # [rad/s]
+                ang_w = -np.arange(R_initial, R_final, increment)
         
-            ang_w = np.arange(R_initial, R_final, increment)
+            
 
             time = 0
             i = 0
@@ -129,15 +130,16 @@ def generate_launch_description():
         #OPEN LOOP wl wr (from -157 to 157)
         ####################################
         turning ='left'
-        wheel_l = -160. #-160:20: 160 //these are the wheel rad/s at MOTOR SIDE
+        #wheel_l = 209. #-209:20:209 //these are the wheel rad/s at MOTOR SIDE
+        wheel_l = 209. #-209:20:209 //these are the wheel rad/s at MOTOR SIDE
         change_interval = 2.
         increment = 40   # it was = 40
         dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
 
         if wheel_l>=0:
-            wheel_r = np.arange(160., -160.-increment, -increment)  
+            wheel_r = np.arange(209., -209.-increment, -increment)  
         else:     
-            wheel_r = np.arange(-160., 160.+increment, increment)       
+            wheel_r = np.arange(-209., 209.+increment, increment)       
         time = 0
         i = 0
   
