@@ -19,20 +19,22 @@ def generate_launch_description():
     ident_type='wheels'# "v_omega" 'wheels'
     alpha_dot_ident = False
     #########################
-    #fixed
+    #fixed speed
     ###########################
+    # ident_type='v_omega'
     # dt = 0.005 # [s]
-    # long_v = -0.0 # [m/s]
-    # # turning_radius = -0.3 # [m]
-    # # ang_w = long_v / turning_radius # [rad/s]
-    # ang_w = 0.1
-    # t_end = 20 # [s]
+    # long_v = 0.3 # [m/s]
+    # ang_w = 0.3
+    # t_end = 8 # [s]
     # n = (np.ceil(t_end / dt)).astype(int)    
-    # v_vec     = np.linspace(long_v,   long_v, n).tolist()
-    # omega_vec = np.linspace(ang_w,   ang_w, n).tolist()
-    # v_vec.append(0.0)
-    # omega_vec.append(0.0)
-
+    # v_vec     = [long_v]*n
+    # omega_vec = [ang_w]*n
+    # print(v_vec)
+    # wheel_l_vec = [0.]*n
+    # wheel_r_vec = [0.]*n
+    # bag_string = 'bagfiles/scicane_'
+    # param_string = 'long_v%1.1f_omega%1.1f'%(long_v, ang_w)
+    # bag_name = bag_string + param_string + '.bag'
    
     if ident_type=='v_omega':
         #alpha dot
@@ -99,8 +101,6 @@ def generate_launch_description():
             #turning right
                 ang_w = -np.arange(R_initial, R_final, increment)
         
-            
-
             time = 0
             i = 0
             while True:
