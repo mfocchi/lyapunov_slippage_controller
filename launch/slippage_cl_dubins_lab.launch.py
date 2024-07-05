@@ -83,6 +83,7 @@ def generate_launch_description():
             {'target_point': [1.5,  2.12, 1.57]},
             {'consider_side_slippage': False},
             {'consider_long_slippage': False},
+            {'target_point': [2.5,  3., 0]},
         ],
         on_exit=launch.actions.Shutdown(),
     )
