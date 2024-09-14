@@ -15,21 +15,45 @@ def generate_launch_description():
 
     #THIS PARAMETERS ARE ONLY FOR FFWD TRAJECTORY WITHOUT MATLAB (FIXED VEL)
     # if you use matlab planning do not consider this!
-    longitudinal_velocity = 0.4
-    angular_velocity1 = 0.2
-    angular_velocity2 = -0.2
-    exp_duration = 12.
-    n = int(exp_duration/path_gen_dt)
-    v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
-    omega_vec = np.linspace(angular_velocity1,angular_velocity1, int(n/2)).tolist()
-    omega_vec.extend(np.linspace(angular_velocity2,angular_velocity2, int(n/2)).tolist())
-    # stop execution of control inputs
-    v_vec.append(0.0)
-    v_vec.append(0.0)
-    v_vec.append(0.0)
-    omega_vec.append(0.0)
-    omega_vec.append(0.0)
-    omega_vec.append(0.0)
+    #chicane traj as in sim
+    simulation_time = 20
+    n_samples = int(20. / path_gen_dt)
+    t = np.linspace(0., path_gen_dt*n_samples, n_samples)
+    v_vec = []
+    omega_vec = []
+    t1 = 0.1*simulation_time
+    t2 = 0.6*simulation_time
+    omega_max = 0.3
+    v_max = 0.2
+    for i in range(t.shape[0]):
+        if (t[i] < t1):
+            v_vec.append(v_max * t[i])
+            omega_vec.append(0)
+     
+        elif (t[i] < t2):            
+            v_vec.append(v_max)
+            omega_vec.append(omega_max)
+
+        else:
+            v_vec.append(v_max)
+            omega_vec.append(-omega_max)
+      
+    
+    # longitudinal_velocity = 0.4
+    # angular_velocity1 = 0.2
+    # angular_velocity2 = -0.2
+    # exp_duration = 12.
+    # n = int(exp_duration/path_gen_dt)
+    # v_vec     = np.linspace(longitudinal_velocity,longitudinal_velocity, n).tolist()
+    # omega_vec = np.linspace(angular_velocity1,angular_velocity1, int(n/2)).tolist()
+    # omega_vec.extend(np.linspace(angular_velocity2,angular_velocity2, int(n/2)).tolist())
+    # # stop execution of control inputs
+    # v_vec.append(0.0)
+    # v_vec.append(0.0)
+    # v_vec.append(0.0)
+    # omega_vec.append(0.0)
+    # omega_vec.append(0.0)
+    # omega_vec.append(0.0)
 
     pose_init = [0.0,0.0,0.0]
 
@@ -38,7 +62,7 @@ def generate_launch_description():
         executable="optitrack",
         name="optitrack",
     )
-
+    #used downstairs
     # optitrack_node =  Node(
     #     package="qualisys",
     #     executable="qualisys_node",
@@ -46,11 +70,10 @@ def generate_launch_description():
     #     output='screen',
     # )
 
-    Simulation = False
     RosBagRecord = True
 
-    Kp = 5.
-    Kth = 5.0
+    Kp =10.
+    Kth = 1.0
     controller_node = Node(
         package="lyapunov_slippage_controller",
         executable="slippage_controller_node",
@@ -80,8 +103,8 @@ def generate_launch_description():
             {'beta_slip_inner_coefficients_right': [ -0.0618 ,   3.0089]},
             {'beta_slip_outer_coefficients_right': [  0.0906,    3.7924]},
             {'consider_side_slippage': True},
-            {'consider_long_slippage': False},
-            {'planner_type': "optim"},#dubins/optim
+            {'consider_long_slippage': True},
+            {'planner_type': "dubins"},#dubins/optim
             {'target_point': [2.,  2.5, 0]},
         ],
         on_exit=launch.actions.Shutdown(),

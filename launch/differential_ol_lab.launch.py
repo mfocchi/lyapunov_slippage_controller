@@ -16,7 +16,7 @@ def generate_launch_description():
     wheel_l_vec = []
     wheel_r_vec = []
 
-    ident_type='wheels'# "v_omega" 'wheels'
+    ident_type='v_omega'# "v_omega" 'wheels'
     alpha_dot_ident = False
     #########################
     #fixed speed
@@ -83,7 +83,7 @@ def generate_launch_description():
             #max speed of wheels (motors) is 2000 rpm and 207 rad /s 
             #R = [0:0.1: 0.4]; in matlab with coppeliasim with only turning left
             R_initial = 0.15    # THE MIMINUM ACHIEVABLE RADIUS ON REAL ROBOT IS 0.1
-            R_final = 0.5    # it was = 0.6
+            R_final = 0.6    # it was = 0.6
             turning='left'
             dt = 0.005  # [s] 200Hz    -- the same as CoppeliaSim
             long_v = 0.2  # [m/s]   #0.05:0.025:0.15
